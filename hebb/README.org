@@ -1,0 +1,408 @@
+#+LATEX_HEADER: \RequirePackage{fancyvrb}
+#+LATEX_HEADER: \DefineVerbatimEnvironment{verbatim}{Verbatim}{fontsize=\small}
+
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline
+#+OPTIONS: author:t broken-links:nil c:nil creator:nil
+#+OPTIONS: d:(not "LOGBOOK") date:t e:t email:t f:t inline:t num:t
+#+OPTIONS: p:nil pri:nil prop:nil stat:t tags:t tasks:t tex:t
+#+OPTIONS: timestamp:t title:t toc:nil todo:t |:t
+
+#+TITLE: Regra de Hebb
+#+AUTHOR: Gustavo Alves Pacheco
+#+DATE: 11821ECP011
+#+EMAIL: gap1512@gmail.com
+#+LANGUAGE: pt_BR
+#+SELECT_TAGS: export
+#+EXCLUDE_TAGS: noexport
+#+CREATOR: Emacs 26.2 (Org mode 9.1.9)
+
+#+PROPERTY: header-args :tangle hebb.lisp
+
+* Introdução
+
+A seguir, está descrito o desenvolvimento de um programa em Common Lisp para treinamento
+de um neurônio artificial de McCullock-Pitts utilizando a Regra de Hebb. Tal regra representa
+a primeira estratégia de treinamento proposta na literatura de Aprendizagem de Máquina. 
+Seu desenvolvedor, Donald Hebb, era um psicólogo que descobriu que o condicionamento 
+promove alterações na estrutura sináptica.
+
+A plasticidade sináptica mede a eficiência na alteração sináptica, resultando em um modelo de aprendizado.
+Modelo este que atua sobre o neurônio de McCulloch-Pitts, composto de entradas reais (x_1 a x_n), conectadas
+ao núcleo =y= através de pesos (w_1 a w_n), que podem ser excitatórios (w_i > 0) ou inibitórios (w_i < 0).
+Do núcleo, tem-se a saída binária =f(y)=, que é uma função degrau, configurada através de um limiar \theta, fixo,
+definido para que a inibição seja absoluta. Esta função compara o resultado da =net= com o limiar. A =net=, por
+sua vez, corresponde ao somatório do produto entre entrada e o peso da entrada correspondente, mais um 
+termo =b= (/bias/), vide [[eq01]] \cite{yamanaka}.
+
+#+NAME: eq01
+\begin{equation}
+net = \sum_{i=1}^{n}w_i*x_i + b
+\end{equation}
+
+O treinamento consiste na determinação dos valores de w_i e b do neurônio, dado um conjunto de entradas (/source/)
+e suas respectivas saídas (/target/). Na regra de Hebbs, para cada item do grupo de treino tem-se um ajuste no
+valor de w_i e b, dado pela equação [[eq02]].
+
+#+NAME: eq02
+\begin{equation}
+\Delta w_i = x_i*t
+\end{equation}
+
+A seção de [[Desenvolvimento][desenvolvimento]] a seguir, mostra as etapas utilizadas para implementação de um algoritmo 
+(seguindo a regra de Hebb) destinado ao treinamento de um neurônio em cada uma das 16 funções lógicas 
+que podem ser construídas a partir de 2 entradas binárias.
+
+* Objetivos
+
+- Aprimorar o conhecimento sobre Redes Neurais Artificiais e obter experiência prática na implementação das mesmas, partindo de uma rede com um único Neurônio Artificial.
+- Aplicar a regra de Hebb a funções lógicas de duas variáveis em representação bipolar.
+- Realizar o treinamento da rede neural para cada uma das 16 funções lógicas obtidas a partir de duas entradas binárias.
+
+* Materiais e Métodos
+
+Para implementação da rede neural foi utilizada a linguagem de programação Common Lisp,
+compilando-a com o SBCL (Steel Bank Common Lisp).
+Como interface de desenvolvimento, foi utilizado o Emacs em Org Mode, configurado com a plataforma
+SLIME (The Superior Lisp Interaction Mode for Emacs) para melhor comunicação com o SBCL.
+Foi utilizada uma abordagem bottom-up para o desenvolvimento. O código produzido segue
+majoritariamente o paradigma funcional, sendo este trabalho como um todo uma obra de programação literária.
+
+* Desenvolvimento
+
+De maneira geral, o programa a ser implementado deve apresentar a função =neural-network=, que recebe
+uma função de treino (=training=) e uma função de execução (=running=), bem como os argumentos necessários
+para cada uma das duas funções.
+
+#+BEGIN_SRC lisp
+  (defpackage "hebb"
+    (:use :cl))
+
+  (in-package "hebb")
+#+END_SRC
+
+#+RESULTS:
+: #<PACKAGE "hebb">
+
+Iniciando pela função de treino, é necessário que a mesma receba o =source=, o =target= e uma lista com os pesos
+iniciais, retornando, assim, uma lista com os pesos após o treinamento.
+Para um único item, implementa-se a regra de Hebb, conforme [[eq02]]:
+
+#+BEGIN_SRC lisp
+  (defun hebb (source target weights)
+    (mapcar #'(lambda (w x)
+		(+ w (* x target)))
+	    weights source))
+#+END_SRC
+
+#+RESULTS:
+: HEBB
+
+Sendo a chamada da função algo do tipo:
+
+#+BEGIN_SRC lisp :tangle no :exports both
+  (hebb
+   '(-1 1 1) ;;source
+   1         ;;target
+   '(0 0 0)) ;;initial-weights
+#+END_SRC
+
+#+RESULTS:
+| -1 | 1 | 1 |
+
+Definido o treino para um item do conjunto, é fácil expandir o comportamento para abranger uma lista, logo:
+
+#+NAME: training
+#+BEGIN_SRC lisp
+  (defun training (source target weights)
+    (do* ((w weights (hebb (car src) (car trg) w))
+	  (src source (cdr src))
+	  (trg target (cdr trg)))
+	 ((or (not src) (not trg)) w)))
+#+END_SRC
+
+#+RESULTS: training
+: TRAINING
+
+A chamada dessa função para a porta lógica =or=, é a seguinte:
+
+#+BEGIN_SRC lisp :tangle no :exports both
+  (training
+   '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) ;;source
+   '(1 -1 -1 -1)                          ;;target
+   '(0 0 0))                              ;;initial-weights
+#+END_SRC
+
+#+RESULTS:
+| 2 | 2 | -2 |
+
+Os valores de saída representam w_1, w_2 e b, respectivamente.
+Tendo em mãos os valores dos coeficientes, a função de execução deve ser definida,
+para que o neurônio desempenhe a tarefa para a qual foi treinado.
+
+#+NAME: running
+#+BEGIN_SRC lisp
+  (defun net (weights input)
+    (apply #'+ (mapcar #'* weights input)))
+
+  (defun activation (net threshold)
+    (if (>= net threshold) 1 -1))
+
+  (defun running (inputs weights threshold net-fn activation-fn)
+    (mapcar #'(lambda (i)
+		(funcall activation-fn
+			 (funcall net-fn 
+				  weights i)
+			 threshold))
+	    inputs))
+#+END_SRC
+
+#+RESULTS: running
+: RUNNING
+
+Nesta definição, =running= é uma função de alta ordem, permitindo que comportamentos diferentes
+sejam atingidos, dependendo dos parâmetros passados. =net= é a implementação direta da [[eq01]], enquanto
+=activation= representa a função degrau de ativação. A chamada da mesma, para a tabela =or=, utilizando
+os pesos encontrados no treinamento é a seguinte:
+
+#+BEGIN_SRC lisp :tangle no :exports both
+  (running
+   '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) ;;inputs
+   '(2 2 -2)                              ;;weights
+   0                                      ;;threshold
+   #'net                                  ;;net-fn
+   #'activation)                          ;;activation-fn
+#+END_SRC
+
+#+RESULTS:
+| 1 | -1 | -1 | -1 |
+
+Como o resultado foi o mesmo da tabela verdade para o operador =or=, o programa está executando corretamente.
+Vale observar que a terceira coluna do =inputs= e do =source= (terceiro elemento de cada sublista)
+deve sempre apresentar o valor 1, pois esta entrada correspondente ao peso =b=. Juntando as duas definições, temos:
+
+#+NAME: neural-network
+#+BEGIN_SRC lisp
+  (defun neural-network (training-fn source target initial-weights running-fn
+			 inputs threshold net-fn activation-fn)
+    (let ((w (funcall training-fn source target initial-weights)))
+      (values (funcall running-fn inputs w threshold net-fn activation-fn)
+	      w)))
+#+END_SRC
+
+#+RESULTS: neural-network
+: NEURAL-NETWORK
+
+A qual é executada da seguinte maneira:
+
+#+BEGIN_SRC lisp :tangle no :exports both
+  (neural-network
+   #'training                             ;;training-fn
+   '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) ;;source
+   '(1 -1 -1 -1)                          ;;target
+   '(0 0 0)                               ;;initial-weights
+   #'running                              ;;running-fn
+   '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) ;;inputs
+   0                                      ;;threshold
+   #'net                                  ;;net-fn
+   #'activation)                          ;;activation-fn
+#+END_SRC
+
+#+RESULTS:
+| 1 | -1 | -1 | -1 |
+
+Vale observar que a função =neural-network= possui dois valores de retorno. O primeiro é a saída da rede
+neural, quando executada nas condições especificadas e o segundo é uma lista que contém os valores de
+coeficientes obtidos durante o treinamento.
+
+Agora, resta testar a rede neural para as 16 configurações possíveis de entradas e saídas lógicas 
+(com duas variáveis). Para que a visualização das comparações seja facilitada, uma camada será feita, por cima
+da função =neural-network=. Esta nova função, implementada abaixo, permite comparar o resultado desejado
+com o obtido após o treinamento.
+
+#+BEGIN_SRC lisp
+  (defun neural-network-comparison (training-fn source target initial-weights
+				    running-fn inputs threshold net-fn
+				    activation-fn)
+    (multiple-value-bind (output weights)
+	(neural-network training-fn source target initial-weights running-fn
+			inputs threshold net-fn activation-fn)
+      (with-output-to-string (str)
+	(format str
+		"Obtained Weights: [~{~a~^ ~}]~%"
+		weights)
+	(mapcar #'(lambda (tar out)
+		    (format str
+			    "Expected: ~a | Obtained: ~a | [~:[Fail~;Pass~]]~%"
+			    tar out (eq tar out)))
+		target
+		output)
+	str)))
+#+END_SRC
+
+#+RESULTS:
+: NEURAL-NETWORK-COMPARISON
+
+Para a mesma chamada anterior, obtemos a seguinte saída:
+
+#+BEGIN_SRC lisp :tangle no :exports both
+  (neural-network-comparison
+   #'training                             ;;training-fn
+   '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) ;;source
+   '(1 -1 -1 -1)                          ;;target
+   '(0 0 0)                               ;;initial-weights
+   #'running                              ;;running-fn
+   '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) ;;inputs
+   0                                      ;;threshold
+   #'net                                  ;;net-fn
+   #'activation)                          ;;activation-fn
+#+END_SRC
+
+#+RESULTS:
+: Obtained Weights: [2 2 -2]
+: Expected: 1 | Obtained: 1 | [Pass]
+: Expected: -1 | Obtained: -1 | [Pass]
+: Expected: -1 | Obtained: -1 | [Pass]
+: Expected: -1 | Obtained: -1 | [Pass]
+
+Assim, a verificação do treino das 16 funções lógicas é trivial (ver seção [[Resultados]] para saída desta execução).
+
+#+NAME: final-results
+#+BEGIN_SRC lisp :tangle no :exports both :results value verbatim
+  (mapcar
+   #'(lambda (target)
+       (neural-network-comparison
+	#'training                                       ;;training-fn
+	'((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1))           ;;source
+	target                                           ;;target
+	'(0 0 0)                                         ;;initial-weights
+	#'running                                        ;;running-fn
+	'((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1))           ;;inputs
+	0                                                ;;threshold
+	#'net                                            ;;net-fn
+	#'activation))                                   ;;activation-fn
+   '((-1 -1 -1 -1) (-1 -1 -1 1) (-1 -1 1 -1) (-1 -1 1 1) ;;16 possible targets
+     (-1 1 -1 -1) (-1 1 -1 1) (-1 1 1 -1) (-1 1 1 1)
+     (1 -1 -1 -1) (1 -1 -1 1) (1 -1 1 -1) (1 -1 1 1)
+     (1 1 -1 -1) (1 1 -1 1) (1 1 1 -1) (1 1 1 1)))
+#+END_SRC
+
+* Conclusão
+
+Pelos resultados obtidos, é possível observar que 14 das 16 funções apresentaram a saída correta.
+Entretanto, duas divergências ocorreram. Tanto em ='(-1 1 1 -1)= quanto em ='(1 -1 -1 1)=. Nas duas situações, todos 
+os pesos possuiam valor 0. Apesar desse ocorrido, foi possível treinar com sucesso o neurônio nos outros 
+14 casos, utilizando a representação bipolar e a regra de Hebb.
+
+Tal constatação é interessante, pois foi possível treinar uma máquina, através de operações
+extremamente simples, para que desempenhe uma tarefa de forma autônoma. Obviamente, o trabalho realizado
+pelo neurônio é de certa forma simples, mas utilizando os mesmos conceitos é possível expandir as definições
+propostas, criando redes que aprendam a executar funções mais complexas.
+
+\twocolumn
+
+* Resultados
+
+#+RESULTS: final-results
+#+begin_example
+("Obtained Weights: [0 0 -4]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+"
+ "Obtained Weights: [-2 -2 -2]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+"
+ "Obtained Weights: [2 -2 -2]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+"
+ "Obtained Weights: [0 -4 0]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+"
+ "Obtained Weights: [-2 2 -2]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+"
+ "Obtained Weights: [-4 0 0]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+"
+ "Obtained Weights: [0 0 0]
+Expected: -1 | Obtained: 1 | [Fail]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: 1 | [Fail]
+"
+ "Obtained Weights: [-2 -2 2]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+"
+ "Obtained Weights: [2 2 -2]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+"
+ "Obtained Weights: [0 0 0]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: 1 | [Fail]
+Expected: -1 | Obtained: 1 | [Fail]
+Expected: 1 | Obtained: 1 | [Pass]
+"
+ "Obtained Weights: [4 0 0]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+"
+ "Obtained Weights: [2 -2 2]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+"
+ "Obtained Weights: [0 4 0]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+"
+ "Obtained Weights: [-2 2 2]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+"
+ "Obtained Weights: [2 2 2]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: -1 | Obtained: -1 | [Pass]
+"
+ "Obtained Weights: [0 0 4]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+Expected: 1 | Obtained: 1 | [Pass]
+")
+#+end_example
+
+\onecolumn
+
+\bibliographystyle{plain} 
+\bibliography{references}

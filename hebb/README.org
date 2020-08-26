@@ -48,7 +48,7 @@ valor de w_i e b, dado pela equação [[eq02]].
 \Delta w_i = x_i*t
 \end{equation}
 
-A seção de [[Desenvolvimento][desenvolvimento]] a seguir, mostra as etapas utilizadas para implementação de um algoritmo 
+A seção de [[Desenvolvimento][desenvolvimento]] mostra as etapas utilizadas para implementação de um algoritmo 
 (seguindo a regra de Hebb) destinado ao treinamento de um neurônio em cada uma das 16 funções lógicas 
 que podem ser construídas a partir de 2 entradas binárias.
 
@@ -74,10 +74,7 @@ uma função de treino (=training=) e uma função de execução (=running=), bem como
 para cada uma das duas funções.
 
 #+BEGIN_SRC lisp
-  (defpackage "hebb"
-    (:use :cl))
-
-  (in-package "hebb")
+  (in-package :machine-learning)
 #+END_SRC
 
 #+RESULTS:
@@ -242,7 +239,7 @@ com o obtido após o treinamento.
 #+RESULTS:
 : NEURAL-NETWORK-COMPARISON
 
-Para a mesma chamada anterior, obtemos a seguinte saída:
+Para a mesma chamada anterior, utilizando a nova função, obtemos a seguinte saída:
 
 #+BEGIN_SRC lisp :tangle no :exports both
   (neural-network-comparison
@@ -290,10 +287,10 @@ Assim, a verificação do treino das 16 funções lógicas é trivial (ver seção [[Res
 
 Pelos resultados obtidos, é possível observar que 14 das 16 funções apresentaram a saída correta.
 Entretanto, duas divergências ocorreram. Tanto em ='(-1 1 1 -1)= quanto em ='(1 -1 -1 1)=. Nas duas situações, todos 
-os pesos possuiam valor 0. Apesar desse ocorrido, foi possível treinar com sucesso o neurônio nos outros 
+os pesos possuíam valor 0. Apesar desse ocorrido, foi possível treinar com sucesso o neurônio nos outros 
 14 casos, utilizando a representação bipolar e a regra de Hebb.
 
-Tal constatação é interessante, pois foi possível treinar uma máquina, através de operações
+Tal constatação é bastante interessante, pois foi possível treinar uma máquina, através de operações
 extremamente simples, para que desempenhe uma tarefa de forma autônoma. Obviamente, o trabalho realizado
 pelo neurônio é de certa forma simples, mas utilizando os mesmos conceitos é possível expandir as definições
 propostas, criando redes que aprendam a executar funções mais complexas.
@@ -405,4 +402,4 @@ Expected: 1 | Obtained: 1 | [Pass]
 \onecolumn
 
 \bibliographystyle{plain} 
-\bibliography{references}
+\bibliography{../references}

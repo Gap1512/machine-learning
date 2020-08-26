@@ -1,7 +1,4 @@
-(defpackage "hebb"
-  (:use :cl))
-
-(in-package "hebb")
+(in-package :machine-learning)
 
 (defun hebb (source target weights)
   (mapcar #'(lambda (w x)

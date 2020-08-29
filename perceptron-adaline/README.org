@@ -1,7 +1,5 @@
 #+LATEX_CLASS_OPTIONS: [12pt]
 #+LATEX_HEADER: \usepackage[margin=3cm]{geometry}
-#+LATEX_HEADER: \RequirePackage{fancyvrb}
-#+LATEX_HEADER: \DefineVerbatimEnvironment{verbatim}{Verbatim}{fontsize=\small}
 
 #+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline
 #+OPTIONS: author:t broken-links:nil c:nil creator:nil
@@ -62,16 +60,13 @@ dedução pela máquina. Então, o treinamento passa a ser um processo iterativo, no
 primeiro, e depois é ajustada de acordo com a exatidão do resultado.
 
 O Adaline é um neurônio que apresenta um algoritmo de treinamento baseado na regra delta ou LMS (least mean square).
-Proposto e implementado por Bernard Widrow e Ted Hoff na Stanford University, em 1960, possui como diferencial,
+Proposto e implementado por Bernard Widrow e Ted Hoff na Stanford University, em 1960, possui como diferencial
 a possibilidade de trabalhar com entradas e saídas contínuas, sendo a atualização dos pesos proporcional à diferença
 entre o valor desejado e o obtido. Também é um classificador linear \cite{yamanaka}.
 
 Além disso, alguns resultados serão exibidos de forma gráfica, ou seja, será necessário implementar, também,
 uma função para plotagem dos dados. Finalmente, um novo conceito é introduzido, o de learning rate, o qual
-será abordado com maiores detalhes na seção [[Desenvolvimento]].
-
-\bibliographystyle{plain} 
-\bibliography{../references}
+será abordado com maiores detalhes nas seções a seguir.
 
 * Objetivos
 
@@ -87,26 +82,26 @@ Como interface de desenvolvimento, foi utilizado o Emacs em Org Mode, configurad
 SLIME (The Superior Lisp Interaction Mode for Emacs) para melhor comunicação com o SBCL.
 Foi utilizada uma abordagem bottom-up para o desenvolvimento. O código produzido segue
 majoritariamente o paradigma funcional, sendo este trabalho como um todo uma obra de programação literária.
-Grande parte das funções já foram implementadas em [[file:../hebb/README.org][Regra de Hebb]].
+Uma parte das funções já foram implementadas em [[file:../hebb/README.org][Regra de Hebb]].
 
-* Desenvolvimento
+* Perceptron
 
 #+NAME: tbsrc
 #+BEGIN_SRC lisp :tangle no :exports none
-  '((1.0 1.0 1) 
-    (1.1 1.5 1)
-    (2.5 1.7 1)
-    (1.0 2.0 1)
-    (0.3 1.4 1) 
-    (2.8 1.0 1)
-    (0.8 1.5 1)
-    (2.5 0.5 1)
-    (2.3 1.0 1)
-    (0.5 1.1 1)
-    (1.9 1.3 1) 
-    (2.0 0.9 1)
-    (0.5 1.8 1)
-    (2.1 0.6 1))
+'((1.0 1.0 1) 
+  (1.1 1.5 1)
+  (2.5 1.7 1)
+  (1.0 2.0 1)
+  (0.3 1.4 1) 
+  (2.8 1.0 1)
+  (0.8 1.5 1)
+  (2.5 0.5 1)
+  (2.3 1.0 1)
+  (0.5 1.1 1)
+  (1.9 1.3 1) 
+  (2.0 0.9 1)
+  (0.5 1.8 1)
+  (2.1 0.6 1))
 #+END_SRC
 
 #+RESULTS: tbsrc
@@ -125,17 +120,22 @@ Grande parte das funções já foram implementadas em [[file:../hebb/README.org][Re
 | 0.5 | 1.8 | 1 |
 | 2.1 | 0.6 | 1 |
 
-Inicialmente, o Perceptron será implementado. Assim como anteriormente, a função da rede neural, =perceptron=,
-deve receber uma função de treinamento e outra de execução. Como no treinamento de um perceptron é utilizada
-a execução da rede, a função =running-single= será passada para =training=. =Running-single= é definida da seguinte forma:
+Inicialmente, o Perceptron será implementado. Como no treinamento de um perceptron é utilizada
+a execução da rede neural, a função =running-single= deve estar presente em =iterative-training=. =Running-single= é definida da seguinte forma:
 
 #+BEGIN_SRC lisp
-  (defun running-single (input weights threshold net-fn activation-fn)
-    (funcall activation-fn (funcall net-fn weights input) threshold))
+(defun running-single (input weights threshold net-fn activation-fn)
+  (funcall activation-fn (funcall net-fn weights input) threshold))
 #+END_SRC
 
+#+RESULTS:
+: RUNNING-SINGLE
+
+Desta forma, é possível executar uma rede neural para um único conjunto de entradas:
+
 #+BEGIN_SRC lisp :tangle no :exports both
-  (running-single '(1 1 1) '(2 2 0) 0 #'net #'activation)
+;;(running-single input weights threshold net-fn activation-fn)
+(running-single '(1 1 1) '(2 2 0) 0 #'net #'activation)
 #+END_SRC
 
 #+RESULTS:
@@ -145,24 +145,25 @@ Como as funções =net= e =activation= ainda são as mesmas, não há necessidade de 
 era chamada da seguinte maneira:
 
 #+BEGIN_SRC lisp :tangle no :exports both
-  (training '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) '(1 -1 -1 -1) '(0 0 0))
+;;(training source target weights)
+(training '((1 1 1) (-1 1 1) (1 -1 1) (-1 -1 1)) '(1 -1 -1 -1) '(0 0 0))
 #+END_SRC
 
 #+RESULTS:
 | 2 | 2 | -2 |
 
 Como não é possível passar a função de ajuste dos pesos e o comportamento geral do treinamento
-é diferente, =training= será alterada. Primeiramente, a função de atualização dos pesos de um único par =source= 
+é diferente, =training= será alterada. Primeiramente, a função de atualização dos pesos de um único par =source=
 =target= é implementada:
 
 #+BEGIN_SRC lisp
-  (defun perceptron-update (source target output weights learning-rate)
-    (if (eq output target)
-	(list weights nil)
-	(list (mapcar #'(lambda (weight source)
-			  (+ weight (* learning-rate target source)))
-		      weights source)
-	      t)))
+(defun perceptron-update (source target output weights learning-rate)
+  (if (eq output target)
+      (list weights nil)
+      (list (mapcar #'(lambda (weight source)
+			(+ weight (* learning-rate target source)))
+		    weights source)
+	    t)))
 #+END_SRC
 
 #+RESULTS:
@@ -171,49 +172,57 @@ Como não é possível passar a função de ajuste dos pesos e o comportamento geral 
 Sendo a chamada da seguinte forma: 
 
 #+BEGIN_SRC lisp :tangle no :exports both
-  (perceptron-update '(-1 -1 1) -1 0 '(1 1 1) 1)
+;;(perceptron-update source target output weights learning-rate)
+(perceptron-update '(-1 -1 1) -1 0 '(1 1 1) 1)
 #+END_SRC
 
 #+RESULTS:
 | (2 2 0) | T |
 
 Esta função retorna dois valores. O primeiro corresponde ao valor atualizado dos pesos, enquanto o segundo
-informa se alguma alteração foi feita. Isto será útil na determinação da parada da iteração. Assim, =training= 
-é implementada. A função de condição de parada deve receber o valor antigo, o valor novo (do tipo '(new-value change-p)),
-o valor de p corrente, a tolerância da alteração de pesos, o número de ciclos atual e o máximo.
+informa se alguma alteração foi feita. Isto será útil na determinação da parada da iteração. Abaixo a implementação de =iterative-training=.
+Tal função é adequada para ambos os algoritmos, ou seja, consegue se ajustar tanto à execução do perceptron
+quanto da adaline. Para isto, algumas regras devem ser impostas. 
+
+Primeiramente a função de update precisa retornar uma lista do tipo ='(new-value change-p)=, indicando os novos
+valores de pesos e se houve alguma atualização nos mesmos. Além disso, deve receber o =source=, o =target=,
+o =output= obtido, os pesos antigos e a taxa de aprendizagem.
+
+A segunda regra se refere à função de condição de parada, a qual deve receber o valor antigo dos pesos, o valor novo (do tipo ='(new-value change-p)=),
+o valor de p corrente, a tolerância da alteração de pesos, o número de ciclos atual e o máximo. O valor de p
+determina como está a execução daquele ciclo até o momento. Ele é quem será atualizado pela função de parada.
+Assim, um retorno de =true= fará o algoritmo continuar a execução.
+
+As funções de net e de ativação devem continuar com a mesma assinatura das já implementadas. Assim, =iterative-training=
+é definida:
 
 #+BEGIN_SRC lisp
-  (defun perceptron-stop-condition (old update current-p tolerance
-				    current-cicles max-cicles)
-      (declare (ignorable old tolerance current-cicles max-cicles))
-      (or (second update) current-p))
+(defun perceptron-stop-condition (old update current-p tolerance current-cicles max-cicles)
+  (declare (ignorable old tolerance current-cicles max-cicles))
+  (or (second update) current-p))
 
-  (defun iterative-training (source-list target-list initial-weights
-			     threshold learning-rate tolerance max-cicles
-			     update-fn stop-fn net-fn activation-fn)
-    (let (quadratic-error quadratic-error-aux)
-      (labels ((rec (w p src trg cicle)
-		 (if (and src trg)
-		     (let* ((output (running-single (car src) w
-						    threshold net-fn activation-fn))
-			    (target (car trg))
-			    (update (funcall update-fn (car src)
-					     target
-					     output
-					     w learning-rate)))
-		       (push (expt (- target output) 2) quadratic-error-aux)
-		       (rec (first update)
-			    (funcall stop-fn w update p tolerance cicle max-cicles)
-			    (cdr src) (cdr trg) cicle))
-		     (progn
-		       (push (list cicle (apply #'+ quadratic-error-aux) 1)
-			     quadratic-error)
-		       (setf quadratic-error-aux nil)
-		       (if p
-			   (rec w nil source-list target-list (1+ cicle))
-			   w)))))
-	(values (rec initial-weights t source-list target-list 0)
-		(nreverse quadratic-error)))))
+(defun iterative-training (source-list target-list initial-weights threshold learning-rate tolerance max-cicles update-fn stop-fn net-fn activation-fn)
+  (let (quadratic-error quadratic-error-aux)
+    (labels ((rec (w p src trg cicle)
+	       (if (and src trg)
+		   (let* ((output (running-single (car src) w threshold net-fn activation-fn))
+			  (target (car trg))
+			  (update (funcall update-fn (car src) target output w learning-rate)))
+		     (push (expt (- target output) 2) quadratic-error-aux)
+		     (rec (first update)
+			  (funcall stop-fn w update p tolerance cicle max-cicles)
+			  (cdr src) (cdr trg) cicle))
+		   (progn
+		     (push (list cicle
+				 (apply #'+ quadratic-error-aux)
+				 1)
+			   quadratic-error)
+		     (setf quadratic-error-aux nil)
+		     (if p
+			 (rec w nil source-list target-list (1+ cicle))
+			 w)))))
+      (values (rec initial-weights t source-list target-list 0)
+	      (nreverse quadratic-error)))))
 #+END_SRC
 
 #+RESULTS:
@@ -222,9 +231,12 @@ o valor de p corrente, a tolerância da alteração de pesos, o número de ciclos at
 Para a porta lógica =and=, tem-se a seguinte chamada:
 
 #+BEGIN_SRC lisp :tangle no :exports both
-  (iterative-training
-   '((1 1 1) (1 -1 1) (-1 1 1) (-1 -1 1)) '(1 -1 -1 -1) '(0 0 0) 0 1 0 0
-   #'perceptron-update #'perceptron-stop-condition #'net #'activation)
+;;(iterative-training source-list target-list initial-weights
+;;		      threshold learning-rate tolerance max-cicles
+;;		      update-fn stop-fn net-fn activation-fn)
+(iterative-training
+ '((1 1 1) (1 -1 1) (-1 1 1) (-1 -1 1)) '(1 -1 -1 -1) '(0 0 0) 0 1 0 0
+ #'perceptron-update #'perceptron-stop-condition #'net #'activation)
 #+END_SRC
 
 #+RESULTS:
@@ -233,7 +245,8 @@ Para a porta lógica =and=, tem-se a seguinte chamada:
 Com estes pesos, podemos utilizar a função =running=, para verificar a saída:
 
 #+BEGIN_SRC lisp :tangle no :exports both
-  (running '((1 1 1) (1 -1 1) (-1 1 1) (-1 -1 1)) '(1 1 -1) 0 #'net #'activation)
+;;(running inputs weights threshold net-fn activation-fn)
+(running '((1 1 1) (1 -1 1) (-1 1 1) (-1 -1 1)) '(1 1 -1) 0 #'net #'activation)
 #+END_SRC
 
 #+RESULTS:
@@ -241,13 +254,16 @@ Com estes pesos, podemos utilizar a função =running=, para verificar a saída:
 
 Como o resultado obtido foi o mesmo da função lógica =and=, o treinamento foi bem sucedido.
 
-Assim, realiza-se o treinamento para a base de dados da [[tb1]].
+Assim, realiza-se o mesmo processo para a base de dados da [[tb1]], tratada no código pela variável =tbsrc=.
 
 #+NAME: w-perceptron
 #+BEGIN_SRC lisp :tangle no :exports both :var tbsrc=tbsrc
-  (iterative-training
-   tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) '(0 0 0) 0 1 0 0
-   #'perceptron-update #'perceptron-stop-condition #'net #'activation)                          
+;;(iterative-training source-list target-list initial-weights
+;;		      threshold learning-rate tolerance max-cicles
+;;		      update-fn stop-fn net-fn activation-fn)
+(iterative-training
+ tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) '(0 0 0) 0 1 0 0
+ #'perceptron-update #'perceptron-stop-condition #'net #'activation)                          
 #+END_SRC
 
 #+RESULTS: w-perceptron
@@ -256,7 +272,8 @@ Assim, realiza-se o treinamento para a base de dados da [[tb1]].
 Testando:
 
 #+BEGIN_SRC lisp :tangle no :exports both :var tbsrc=tbsrc
-  (running tbsrc '(-2.6 2.1999998 1) 0 #'net #'activation)
+;;(running inputs weights threshold net-fn activation-fn)
+(running tbsrc '(-2.6 2.1999998 1) 0 #'net #'activation)
 #+END_SRC
 
 #+RESULTS:
@@ -264,51 +281,56 @@ Testando:
 
 Logo, os valores de w_1, w_2 e b são respectivamente: -2.6, 2.1999998 e 1.
 
-Para a parte de plotagem, o pacote =eazy-gnuplot= será utilizado. A função abaixo recebe um caminho de saída e uma
-tabela de pontos e os imprime na tela:
+Para a parte de plotagem, o pacote =eazy-gnuplot= será utilizado. A função abaixo recebe um caminho de saída, uma
+tabela de pontos e uma fronteira do tipo ='((x_i y_i) (x_f y_f))= (a qual será convertida em uma reta)
+e os imprime na tela:
 
 #+BEGIN_SRC lisp
-  (defun scatter-plot (output table boundary)
-    (with-plots (*standard-output* :debug nil)
-      (gp-setup :terminal '(:pngcairo) :output output)
-      (gp :set :palette '("defined (-1 'red', 1 'blue')"))
-      (plot (lambda ()
-	      (loop
-		 for p in boundary
-		 do (format t "~&~{~a~^ ~}" p)))
-	    :title "Boundary"
-	    :with '(:lines))
-      (plot
-       (lambda ()
-	 (loop
-	    for p in table
-	    do (format t "~&~{~a~^ ~}" p)))
-       :title "Points"
-       :with '(:points :pt 7 :lc :palette)))
-    output)
+(defun scatter-plot (output table boundary)
+  (with-plots (*standard-output* :debug nil)
+    (gp-setup :terminal '(:pngcairo) :output output)
+    (gp :set :palette '("defined (-1 'red', 1 'blue')"))
+    (plot
+     (lambda ()
+       (loop
+	  for p in boundary
+	  do (format t "~&~{~a~^ ~}" p)))
+     :title "Boundary"
+     :with '(:lines))
+    (plot
+     (lambda ()
+       (loop
+	  for p in table
+	  do (format t "~&~{~a~^ ~}" p)))
+     :title "Points"
+     :with '(:points :pt 7 :lc :palette)))
+  output)
 #+END_SRC
 
 #+RESULTS:
 : SCATTER-PLOT
 
-A função a seguir retorna os dois pontos necessários para traçar a fronteira de separação linear:
+A função a seguir retorna os dois pontos necessários para traçar a fronteira de separação linear, indo de x_min a 
+x_max.
 
 #+BEGIN_SRC lisp
-  (defun linear-boundary (weights threshold min max)
-    (destructuring-bind (w1 w2 b) weights
-      (labels ((equation (x) (/ (- threshold b (* x w1)) w2)))
-	(list (list min (equation min))
-	      (list max (equation max))))))
+(defun linear-boundary (weights threshold min max)
+  (destructuring-bind (w1 w2 b) weights
+    (labels ((equation (x) (/ (- threshold b (* x w1)) w2)))
+      (list (list min (equation min))
+	    (list max (equation max))))))
 #+END_SRC
 
 #+RESULTS:
 : LINEAR-BOUNDARY
 
-Para a [[tb1]], utilizando os pesos encontrados:
+Para a [[tb1]], utilizando os pesos encontrados, representados por =w-perceptron=:
 
 #+BEGIN_SRC lisp :tangle no :var tb1=tb1 w-perceptron=w-perceptron
-  (scatter-plot "plots/scatter-plot-perceptron.png" tb1
-		(linear-boundary w-perceptron 0 0.3 2.8))
+;;(scatter-plot output table boundary)
+;;(linear-boundary weights threshold min max)
+(scatter-plot "plots/scatter-plot-perceptron.png" tb1
+	      (linear-boundary w-perceptron 0 0.3 2.8))
 #+END_SRC
 
 #+RESULTS:
@@ -318,50 +340,51 @@ Para a [[tb1]], utilizando os pesos encontrados:
 #+CAPTION: Perceptron
 [[./plots/scatter-plot-perceptron.png]]
 
+* Adaline
+
 Para o Adaline, é necessário uma função para inicialização aleatória dos pesos, para isto:
 
 #+BEGIN_SRC lisp
-  (defun random-weights (n min max)
-    (let ((range (float (- max min))))
-      (loop for i from 1 upto n collecting (+ min (random range)))))
+(defun random-weights (n min max)
+  (let ((range (float (- max min))))
+    (loop for i from 1 upto n collecting (+ min (random range)))))
 #+END_SRC
 
 #+RESULTS:
 : RANDOM-WEIGHTS
 
-A função de atualização dos pesos deve ser implementada:
+Seguindo a mesma lógica anterior, a função de atualização dos pesos deve ser implementada (seguindo as regras colocadas):
 
 #+BEGIN_SRC lisp
-  (defun adaline-update (source target output weights learning-rate)
-    (let ((er (- target output)))
-      (list (mapcar #'(lambda (weight source)
-			(+ weight (* learning-rate er source)))
-		    weights source)
-	    t)))
+(defun adaline-update (source target output weights learning-rate)
+  (let ((er (- target output)))
+    (list (mapcar #'(lambda (weight source)
+		      (+ weight (* learning-rate er source)))
+		  weights source)
+	  t)))
 #+END_SRC
 
 #+RESULTS:
 : ADALINE-UPDATE
 
 Além disso, a condição de parada. Vale notar que a ativação durante o treinamento deve ser uma função identidade,
-visto que deseja-se a saída contínua.
+visto que deseja-se a saída contínua, e não a discreta (-1 ou 1).
 
 #+BEGIN_SRC lisp
-  (defun adaline-activation (net threshold)
-    (declare (ignore threshold))
-    net)
+(defun adaline-activation (net threshold)
+  (declare (ignore threshold))
+  net)
 
-  (defun adaline-stop-condition (old update current-p tolerance
-				 current-cicles max-cicles)
-    (if (> current-cicles max-cicles)
-	nil
-	(let ((min 1))
-	  (mapcar #'(lambda (o-w n-w)
-		      (let ((s (- n-w o-w)))
-			(when (< s min)
-			  (setf min s))))
-		  old (first update))
-	  (or (> min tolerance) current-p))))
+(defun adaline-stop-condition (old update current-p tolerance current-cicles max-cicles)
+  (if (> current-cicles max-cicles)
+      nil
+      (let ((min 1))
+	(mapcar #'(lambda (o-w n-w)
+		    (let ((s (- n-w o-w)))
+		      (when (< s min)
+			(setf min s))))
+		old (first update))
+	(or (> min tolerance) current-p))))
 #+END_SRC
 
 #+RESULTS:
@@ -371,17 +394,23 @@ Assim, é necessário apenas chamar a função =iterative-training=, utilizando esta
 
 #+NAME: w-adaline
 #+BEGIN_SRC lisp :tangle no :exports both :var tbsrc=tbsrc
-  (iterative-training
-   tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) (random-weights 3 -1 1)
-   0 0.05 0.03 1000
-   #'adaline-update #'adaline-stop-condition #'net #'adaline-activation)
+;;(iterative-training source-list target-list initial-weights
+;;		      threshold learning-rate tolerance max-cicles
+;;		      update-fn stop-fn net-fn activation-fn)
+(iterative-training
+ tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) (random-weights 3 -1 1)
+ 0 0.05 0.03 1000
+ #'adaline-update #'adaline-stop-condition #'net #'adaline-activation)
 #+END_SRC
 
 #+RESULTS: w-adaline
 | -1.1579641 | 0.1814173 | 1.324608 |
 
+Executando a rede com estes pesos (representados por =w-adaline=):
+
 #+BEGIN_SRC lisp :tangle no :exports both :var w-adaline=w-adaline tbsrc=tbsrc
-  (running tbsrc w-adaline 0 #'net #'activation)
+;;(running inputs weights threshold net-fn activation-fn)
+(running tbsrc w-adaline 0 #'net #'activation)
 #+END_SRC
 
 #+RESULTS:
@@ -390,8 +419,10 @@ Assim, é necessário apenas chamar a função =iterative-training=, utilizando esta
 A plotagem dos pontos de treinamento, em conjunto com a fronteira de separação é a seguinte:
 
 #+BEGIN_SRC lisp :tangle no :var tb1=tb1 w-adaline=w-adaline
-  (scatter-plot "plots/scatter-plot-adaline.png" tb1
-		(linear-boundary w-adaline 0 0.3 2.8))
+;;(scatter-plot output table boundary)
+;;(linear-boundary weights threshold min max)
+(scatter-plot "plots/scatter-plot-adaline.png" tb1
+	      (linear-boundary w-adaline 0 0.3 2.8))
 #+END_SRC
 
 #+RESULTS:
@@ -407,34 +438,39 @@ os valores obtidos após alterações na taxa de aprendizagem, indo de 0 até 1.
 
 #+NAME: tb02
 #+BEGIN_SRC lisp :tangle no :exports both  :var tbsrc=tbsrc
-  (let ((initial-weights (random-weights 3 -1 1)))
-    (loop for i from 0 upto 0.5 by 0.05 collecting 
-	 (iterative-training
-	  tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) initial-weights 0 i 0.03 10
-	  #'adaline-update #'adaline-stop-condition #'net #'adaline-activation)))
+(let ((initial-weights (random-weights 3 -1 1)))
+  (loop for i from 0 upto 0.5 by 0.05 collecting 
+       (iterative-training
+	tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) initial-weights 0 i 0.03 10
+	#'adaline-update #'adaline-stop-condition #'net #'adaline-activation)))
 #+END_SRC
 
 #+CAPTION: Pesos obtidos alterando apenas a taxa de aprendizagem
 #+RESULTS: tb02
-| -0.57044315 |  0.13477564 | -0.23301911 |
-|  -0.9264919 |  0.68021774 |  0.39702922 |
-|  -1.0110356 |    0.519291 |   0.6876742 |
-|  -1.0269682 |  0.43623045 |   0.8584867 |
-|  -0.9918832 |  0.41883644 |   0.8598482 |
-|  -0.9300435 |  0.42350602 |  0.71190095 |
-| -0.84215534 |  0.40690297 |  0.40900868 |
-| -0.44039863 |   0.4471679 | -0.23734394 |
-|   4.8860407 |   2.0518699 |  -5.6142063 |
-| 115955570.0 | 151085150.0 | 147501100.0 |
+|  0.23266816 |  -0.6098385 | -0.81111765 |
+|  -0.8765268 |  0.77813214 |  0.20705172 |
+| -0.97687244 |   0.5933283 |   0.5577808 |
+|  -0.9991687 |  0.49359226 |  0.76181954 |
+|  -0.9671079 |  0.46441302 |   0.7845334 |
+|  -0.9068005 |  0.45966467 |   0.6545085 |
+|  -0.8132947 |   0.4416893 |  0.36455387 |
+| -0.33382857 |   0.5407491 | -0.30766192 |
+|    7.032776 |   3.0768452 |    -7.34341 |
+| 401035000.0 | 522531650.0 | 510136260.0 |
 
 Para valores mais altos de \alpha, o treinamento não obtém o sucesso desejado.
 
-#+BEGIN_SRC lisp :tangle no :var tb1=tb1 w-perceptron=w-perceptron tbsrc=tbsrc
-  (multiple-value-bind (weights er)
-      (iterative-training
-       tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) (random-weights 3 -1 1) 0 0.05 0.03 1000
-       #'adaline-update #'adaline-stop-condition #'net #'adaline-activation)
-   (scatter-plot "plots/scatter-plot-adaline-error.png" er nil))
+#+BEGIN_SRC lisp :tangle no :var tbsrc=tbsrc
+;;(iterative-training source-list target-list initial-weights
+;;		      threshold learning-rate tolerance max-cicles
+;;		      update-fn stop-fn net-fn activation-fn)
+;;(scatter-plot output table boundary)
+(multiple-value-bind (weights er)
+    (iterative-training
+     tbsrc '(1 1 -1 1 1 -1 1 -1 -1 1 -1 -1 1 -1) (random-weights 3 -1 1) 0 0.05 0.03 1000
+     #'adaline-update #'adaline-stop-condition #'net #'adaline-activation)
+  (declare (ignorable weights))
+  (scatter-plot "plots/scatter-plot-adaline-error.png" er nil))
 #+END_SRC
 
 #+RESULTS:
@@ -443,3 +479,19 @@ Para valores mais altos de \alpha, o treinamento não obtém o sucesso desejado.
 #+NAME: fig3
 #+CAPTION: Erro quadrático em tempo de treinamento
 [[./plots/scatter-plot-adaline-error.png]]
+
+* Conclusão
+
+Pelos resultados obtidos, comprova-se a eficácia de tais métodos para classificações lineares. A plotagem dos
+pontos de treinamento em conjunto com a fronteira de separação demonstra muito bem este comportamento. 
+
+Em relação à taxa de aprendizagem, tal valor apresentou uma forte influência na saída dos pesos através do 
+treinamento por Adaline. Quando o valor de \alpha crescia o suficiente (geralmente acima de 0.5), os resultados
+ficavam errados, apresentando valores exorbitantes. Além disso, os valores de pesos aleatórios conferem a cada
+execução um caráter único.
+
+A plotagem da soma dos erros quadráticos de cada ciclo exibiu o comportamento desejado, convergindo bem
+rapidamente a um valor de tolerância.
+
+\bibliographystyle{plain} 
+\bibliography{../references}

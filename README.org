@@ -12,5 +12,6 @@
 #+EXCLUDE_TAGS: noexport
 #+CREATOR: Emacs 26.2 (Org mode 9.1.9)
 
-* [[file:hebb/README.org][Regra De Hebb]]
-* [[file:perceptron-adaline/README.org][Perceptrons e Adaline]]
+** [[file:hebb/][Regra De Hebb]]
+** [[file:perceptron-adaline/][Perceptrons e Adaline]]
+** [[file:linear-regression/][Linear Regression]]

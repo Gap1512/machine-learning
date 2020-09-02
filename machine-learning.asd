@@ -5,4 +5,5 @@
   :depends-on (#:eazy-gnuplot)
   :components ((:file "package")
 	       (:file "./hebb/hebb")
-	       (:file "./perceptron-adaline/perceptron-adaline")))
+	       (:file "./perceptron-adaline/perceptron-adaline")
+	       (:file "./linear-regression/linear-regression")))

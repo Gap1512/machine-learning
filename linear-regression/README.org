@@ -1,0 +1,398 @@
+#+LATEX_CLASS_OPTIONS: [12pt]
+#+LATEX_HEADER: \usepackage[margin=3cm]{geometry}
+
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline
+#+OPTIONS: author:t broken-links:nil c:nil creator:nil
+#+OPTIONS: d:(not "LOGBOOK") date:t e:t email:t f:t inline:t num:t
+#+OPTIONS: p:nil pri:nil prop:nil stat:t tags:t tasks:t tex:t
+#+OPTIONS: timestamp:t title:t toc:nil todo:t |:t
+
+#+TITLE: Regressão Linear
+#+AUTHOR: Gustavo Alves Pacheco
+#+DATE: 11821ECP011
+#+EMAIL: gap1512@gmail.com
+#+LANGUAGE: en
+#+SELECT_TAGS: export
+#+EXCLUDE_TAGS: noexport
+#+CREATOR: Emacs 26.2 (Org mode 9.1.9)
+
+#+PROPERTY: header-args :tangle linear-regression.lisp
+
+#+BEGIN_SRC lisp :exports none
+  (in-package :machine-learning)
+#+END_SRC
+
+#+BEGIN_SRC lisp :exports none :tangle no
+  (ql:quickload :machine-learning)
+#+END_SRC
+
+#+RESULTS:
+: #<PACKAGE "MACHINE-LEARNING">
+
+* Introdução
+
+No processo de regressão linear, busca-se a modelagem da relação
+linear entre variáveis, mais especificamente a relação entre a
+variável dependente e as independentes, também chamadas de
+explanatórias \cite{yamanaka}.
+
+Em regressões lineares simples, utiliza-se apenas uma variável
+explanatória (eq. [[eq01]]), enquanto nas múltiplas, diversas variáveis
+são somadas para formar o resultado (eq. [[eq02]]).
+
+#+NAME: eq01
+\begin{equation}
+y = ax + b
+\end{equation}
+
+#+NAME: eq02
+\begin{equation}
+y = a_1*x_1 + a_2*x_2 + a_3*x_3 + ... + b
+\end{equation}
+
+Nestas equações, $y$ é a variável dependente, enquanto $x_i$ são as
+variáveis independentes. $a_i$ representam os coeficientes angulares e
+$b$, o intercepto.
+
+Logo, para determinar o modelo que descreve tais relações, é
+necessário descobrir os valores dos coeficientes $a_i$ e do intercepto
+$b$. Para tal, algumas técnicas podem ser aplicadas. Duas delas serão
+citadas neste trabalho.
+
+A primeira envolve a utilização do coeficiente de Pearson, $r$,
+definido pela equação [[eq03]], abaixo. Este coeficiente determina o grau
+de correlação entre duas variáveis. Aliado a este, o valor de $r^2$
+também é interessante, sendo conhecido como coeficiente de
+determinação e medindo o percentual da variação de $y$ que é explicado
+pela variação de $x$.
+
+#+NAME: eq03
+\begin{equation}
+r=\dfrac{\sum_{i=1}^{n}(x_i-\bar{x})(y_i-\bar{y})}{\sqrt{\sum_{i=1}^{n}(x_i-\bar{x})^2} \sqrt{\sum_{i=1}^{n}(y_i-\bar{y})^2}}
+\end{equation}
+
+No geral, esta correlação entre duas variáveis pode ser positiva (quando
+o crescimento da variável independente é acompanhado pelo da
+dependente), negativa (quando o crescimento da independente ocasiona
+um decrescimento na dependente), não linear (a relação entre ambas
+não é descrita por uma equação de reta) ou sem correlação.
+
+Pelo coeficiente de Pearson, um valor de $r < 0$ representa uma
+correlação negativa, enquanto $r > 0$, positiva. $r = 0$ indica que
+não há correlação linear entre as variáveis. Neste caso simples, é
+possível determinar o modelo, através das equações [[eq04]] \cite{boston}
+e [[eq05]] \cite{eberly}, abaixo:
+
+#+NAME: eq04
+\begin{equation}
+a=\dfrac{\sum_{i=1}^{n}(x_i-\bar{x})(y_i-\bar{y})}{\sum_{i=1}^{n}(x_i-\bar{x})^2}
+\end{equation}
+
+#+NAME: eq05
+\begin{equation}
+b=\bar{y}-a\bar{x}
+\end{equation}
+
+A segunda técnica é uma modelagem através de um Adaline. Até o
+momento, alguns pesos eram descobertos, os quais descreviam uma saída
+por meio da relação entre as entradas multiplicadas por pesos. E é
+exatamente esta a definição de regressão linear. Portanto, a aplicação
+do Adaline para tal propósito é simples e direta.
+
+* Objetivos
+- Aprimorar o conhecimento sobre Redes Neurais Artificiais e obter
+  experiência prática na implementação das mesmas.
+- Implementar um Adaline que realize a regressão linear para os dados
+  da tabela [[tb01]].
+- Encontrar o coeficiente de correlação de Pearson e o coeficiente de
+  determinação para a mesma base de dados.
+- Calcular $a$ e $b$ (eq. [[eq04]] e [[eq05]]).
+- Comparar resultados obtidos com ambas as técnicas.
+
+#+NAME: tb01
+#+CAPTION: Base de Dados
+|    x |     y |
+|------+-------|
+| 0.00 |  2.26 |
+| 0.50 |  3.80 |
+| 1.00 |  4.43 |
+| 1.50 |  5.91 |
+| 2.00 |  6.18 |
+| 2.50 |  7.26 |
+| 3.00 |  8.15 |
+| 3.50 |  9.14 |
+| 4.00 | 10.87 |
+| 4.50 | 11.58 |
+| 5.00 | 12.55 |
+
+#+NAME: tb01-x
+#+BEGIN_SRC lisp :exports none :tangle no
+'((0.00 1) 
+  (0.50 1) 
+  (1.00 1) 
+  (1.50 1) 
+  (2.00 1) 
+  (2.50 1) 
+  (3.00 1) 
+  (3.50 1) 
+  (4.00 1) 
+  (4.50 1) 
+  (5.00 1))
+#+END_SRC
+
+#+RESULTS: tb01-x
+| 0.0 | 1 |
+| 0.5 | 1 |
+| 1.0 | 1 |
+| 1.5 | 1 |
+| 2.0 | 1 |
+| 2.5 | 1 |
+| 3.0 | 1 |
+| 3.5 | 1 |
+| 4.0 | 1 |
+| 4.5 | 1 |
+| 5.0 | 1 |
+
+#+NAME: tb01-y
+#+BEGIN_SRC lisp :exports none :tangle no
+'(2.26
+  3.80
+  4.43
+  5.91
+  6.18
+  7.26
+  8.15
+  9.14
+  10.87
+  11.58
+  12.55)
+#+END_SRC
+
+#+RESULTS: tb01-y
+| 2.26 | 3.8 | 4.43 | 5.91 | 6.18 | 7.26 | 8.15 | 9.14 | 10.87 | 11.58 | 12.55 |
+
+#+NAME: tb01-plot
+#+BEGIN_SRC lisp :exports none :tangle no
+'((0.00  2.26 1)
+  (0.50  3.80 1)
+  (1.00  4.43 1)
+  (1.50  5.91 1)
+  (2.00  6.18 1)
+  (2.50  7.26 1)
+  (3.00  8.15 1)
+  (3.50  9.14 1)
+  (4.00 10.87 1)
+  (4.50 11.58 1)
+  (5.00 12.55 1))
+#+END_SRC
+
+#+RESULTS: tb01-plot
+| 0.0 |  2.26 | 1 |
+| 0.5 |   3.8 | 1 |
+| 1.0 |  4.43 | 1 |
+| 1.5 |  5.91 | 1 |
+| 2.0 |  6.18 | 1 |
+| 2.5 |  7.26 | 1 |
+| 3.0 |  8.15 | 1 |
+| 3.5 |  9.14 | 1 |
+| 4.0 | 10.87 | 1 |
+| 4.5 | 11.58 | 1 |
+| 5.0 | 12.55 | 1 |
+
+* Materiais e Métodos
+
+Para implementação da rede neural foi utilizada a linguagem de
+programação Common Lisp, compilando-a com o SBCL (Steel Bank Common
+Lisp). Como interface de desenvolvimento, foi utilizado o Emacs em Org
+Mode, configurado com a plataforma SLIME (The Superior Lisp
+Interaction Mode for Emacs) para melhor comunicação com o SBCL. Foi
+utilizada uma abordagem bottom-up para o desenvolvimento. O código
+produzido segue majoritariamente o paradigma funcional, sendo este
+trabalho como um todo uma obra de programação literária. Parte das
+funções já foram implementadas em [[file:../hebb/][Regra de Hebb]] e [[file:../perceptron-adaline][Perceptron e
+Adaline]].
+
+* Adaline
+
+Inicialmente, será implementada uma função que gera a equação da reta
+a partir dos coeficientes. Desta forma, a função definida abaixo faz o
+desejado, entretanto se utiliza da função =eval= para a transformação
+da /s-expression/ em código interpretado, técnica que em vários casos
+deve ser evitada [fn:1].
+
+[fn:1] [[https://stackoverflow.com/questions/2571401/why-exactly-is-eval-evil/2571549]]
+
+
+#+BEGIN_SRC lisp
+(defun linear-regression (weights)
+  (let* ((wi (butlast weights))
+	 (b (first (last weights)))
+	 (args (loop for nil in wi collecting (gensym))))
+    (eval `#'(lambda ,args
+	       (+ ,@(mapcar #'(lambda (a w)
+				`(* ,a ,w))
+			    args wi)
+		  ,b)))))
+#+END_SRC
+
+#+RESULTS:
+: LINEAR-REGRESSION
+
+Continuando a implementação utilizando Adaline, tem-se que os pesos (w
+e b), encontrados durante o treinamento, após 1000 ciclos, e com
+=learning-rate= de 0.005 são:
+
+#+NAME: w-adaline
+#+BEGIN_SRC lisp :tangle no :exports both :var tb01-x=tb01-x tb01-y=tb01-y
+(iterative-training
+ tb01-x tb01-y
+ (random-weights 3 -1 1) 0 0.05 0 1000
+ #'adaline-update #'adaline-stop-condition #'net #'adaline-activation)
+#+END_SRC
+
+#+RESULTS: w-adaline
+| 2.0179942 | 2.4513268 |
+
+Assim, a equação da reta (eq. [[eq06]]) seria:
+
+#+NAME: eq06
+\begin{equation}
+y = 2.0179942 x + 2.4513268
+\end{equation}
+
+Para plotagem dos pontos, a função =linear-boundary= deve ser
+adaptada, da seguinte forma:
+
+#+BEGIN_SRC lisp
+(defun linear-between (fn min max)
+  (list (list min (funcall fn min))
+	(list max (funcall fn max))))
+#+END_SRC
+
+#+RESULTS:
+: LINEAR-BETWEEN
+
+Portanto, o gráfico [[fig1]]:
+
+#+BEGIN_SRC lisp :tangle no :var tb01=tb01-plot w-adaline=w-adaline
+(scatter-plot "plots/scatter-plot-adaline.png"
+	      tb01
+	      (linear-between (linear-regression w-adaline) 0 5))
+#+END_SRC
+
+#+RESULTS:
+: plots/scatter-plot-adaline.png
+
+#+NAME: fig1
+#+CAPTION: Regressão Linear Por Adaline
+[[./plots/scatter-plot-adaline.png]]
+
+* Pearson
+
+Primeiramente, a função para cálculo do r e do r quadrático:
+
+#+BEGIN_SRC lisp
+(defun average (points)
+  (loop for (x y) in points
+     summing x into c-x
+     summing y into c-y
+     counting t into i
+     finally (return (values (/ c-x i) (/ c-y i)))))
+
+(defun r-pearson (points)
+  (multiple-value-bind (av-x av-y)
+      (average points)
+    (loop for (x y) in points
+       summing (* (- x av-x) (- y av-y)) into cov-xy
+       summing (expt (- x av-x) 2) into var-x
+       summing (expt (- y av-y) 2) into var-y
+       finally (return (/ cov-xy (sqrt (* var-x var-y)))))))
+
+(defun r-sqrd (points)
+  (expt (r-pearson points) 2))
+#+END_SRC
+
+#+RESULTS:
+: R-SQRD
+
+Utilizando-as para a tabela [[tb01]], tem-se que o coeficiente $r$ é:
+
+#+BEGIN_SRC lisp :tangle no :exports both :var tb01=tb01
+(r-pearson tb01)
+#+END_SRC
+
+#+RESULTS:
+: 0.99611324
+
+Enquanto $r^2$ é:
+
+#+BEGIN_SRC lisp :tangle no :exports both :var tb01=tb01
+(r-sqrd tb01)
+#+END_SRC
+
+#+RESULTS:
+: 0.99224156
+
+O cálculo de $a$ e $b$, seguindo as equações [[eq04]] e [[eq05]] é definido da
+seguinte forma:
+
+#+BEGIN_SRC lisp
+(defun simple-linear-regression (points)
+  (multiple-value-bind (av-x av-y)
+  (average points)
+    (loop for (x y) in points
+       summing (* (- x av-x) (- y av-y)) into s
+       summing (expt (- x av-x) 2) into s-sqrd
+       finally (let ((a (/ s s-sqrd)))
+		 (return (list a (- av-y (* a av-x))))))))
+#+END_SRC
+
+#+RESULTS:
+: SIMPLE-LINEAR-REGRESSION
+
+Para a base de dados, temos que $a$ e $b$ são:
+
+#+NAME: w-simple
+#+BEGIN_SRC lisp :tangle no :exports both :var tb01=tb01
+(simple-linear-regression tb01)
+#+END_SRC
+
+#+RESULTS: w-simple
+| 2.0058184 | 2.4518175 |
+
+Portanto, a equação da reta (eq. [[eq07]]):
+
+#+NAME: eq07
+\begin{equation}
+y = 2.0058184 x + 2.4518175
+\end{equation}
+
+De forma semelhante, a impressão se dá da seguinte maneira (fig. [[fig2]]):
+
+#+BEGIN_SRC lisp :tangle no :var tb01=tb01-plot w-simple=w-simple
+(scatter-plot "plots/scatter-plot-pearson.png"
+	      tb01
+	      (linear-between (linear-regression w-simple) 0 5))
+#+END_SRC
+
+#+RESULTS:
+: plots/scatter-plot-pearson.png
+
+#+NAME: fig2
+#+CAPTION: Regressão Linear Simples
+[[./plots/scatter-plot-pearson.png]]
+
+* Conclusão
+
+Ambos os algoritmos encontraram valores muito semelhantes de $a$ e
+$b$. Percebe-se que o valor do intercepto foi mais próximo nas duas
+estratégias se comparado ao valor da inclinação. Apesar deste fato,
+observa-se nos gráficos que ambas as retas descrevem com bastante
+fidelidade o conjunto de pontos.
+
+Em relação ao valor do coeficiente, $r = 0.99611324$, verifica-se que
+a relação entre $x$ e $y$ é positiva ($r > 0$) e bastante forte, com
+$r^2 = 0.99224156%$.
+
+\bibliographystyle{plain}
+\bibliography{../references}

@@ -54,6 +54,7 @@ tabela [[tb1]], abaixo.
 | 0.5 | 	1.8 | 	1  |
 | 2.1 | 	0.6 | 	-1 |
 
+
 Os Perceptrons foram propostos por Frank Rosenblatt, um psicólogo. É um tipo de rede neural destinada a fazer classificações
 lineares, como será exibido posteriormente. Neste algoritmo, existe uma atualização dos pesos em caso de erro na
 dedução pela máquina. Então, o treinamento passa a ser um processo iterativo, no qual a rede neural retorna a resposta
@@ -493,5 +494,5 @@ execução um caráter único.
 A plotagem da soma dos erros quadráticos de cada ciclo exibiu o comportamento desejado, convergindo bem
 rapidamente a um valor de tolerância.
 
-\bibliographystyle{plain} 
+\bibliographystyle{plain}
 \bibliography{../references}

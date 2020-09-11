@@ -1,0 +1,505 @@
+#+LATEX_CLASS_OPTIONS: [12pt]
+#+LATEX_HEADER: \usepackage[margin=3cm]{geometry}
+
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline
+#+OPTIONS: author:t broken-links:nil c:nil creator:nil
+#+OPTIONS: d:(not "LOGBOOK") date:t e:t email:t f:t inline:t num:t
+#+OPTIONS: p:nil pri:nil prop:nil stat:t tags:t tasks:t tex:t
+#+OPTIONS: timestamp:t title:t toc:nil todo:t |:t
+
+#+TITLE: Redes Multicamadas
+#+AUTHOR: Gustavo Alves Pacheco
+#+DATE: 11821ECP011
+#+EMAIL: gap1512@gmail.com
+#+LANGUAGE: en
+#+SELECT_TAGS: export
+#+EXCLUDE_TAGS: noexport
+#+CREATOR: Emacs 26.2 (Org mode 9.1.9)
+
+#+PROPERTY: header-args :tangle multilayer-perceptron.lisp
+
+#+BEGIN_SRC lisp :exports none
+  (in-package :machine-learning)
+#+END_SRC
+
+#+BEGIN_SRC lisp :exports none :tangle no
+  (ql:quickload :machine-learning)
+#+END_SRC
+
+#+RESULTS:
+: #<PACKAGE "MACHINE-LEARNING">
+
+* Introdução
+
+Até o momento, foram estudadas redes de uma única camada. Tais redes
+apresentam uma restrição crítica: Não são adequadas para resolver
+problemas que não sejam linearmente separáveis. Assim, buscaram-se
+alternativas que removam esta restrição, e em 1969, Minsy e Papert
+demonstram que a adição de uma camada à essa rede neural possibilita a
+resolução de problemas não linearmente separáveis.
+
+Entretanto, somente em 1986, Rumelhart, Hilton e Willian resolveriam o
+problema de ajuste de pesos da entrada para a camada escondida, que
+impossibilitava a implementação de tais redes. Assim, a solução
+proposta foi a de retropropagação do erro da saída.
+
+Nesta estratégia, é utilizada a generalização da regra delta para
+funções de ativação não-linares. Assim, tanto a tangente hiperbólica
+[[eq1]] quanto as sigmoides binaria [[eq2]] ou bipolar [[eq4]] podem ser
+utilizadas como função de ativação. O algoritmo de aprendizado se
+baseia na minimização do erro quadrático [[eq6]] (dos neurônios de saída)
+pelo método do gradiente descendente [[eq7]] \cite{yamanaka}. Durante a
+implementação de tal rede neural, mais detalhes serão abordados.
+
+#+NAME: eq1
+\begin{equation}
+tanh(x) = \dfrac{e^x - e^{-x}}{e^x + e^{-x}}
+\end{equation}
+
+#+NAME: eq2
+\begin{equation}
+f_1(x) = \dfrac{1}{1+\exp(-x)}
+\end{equation}
+
+#+NAME: eq3
+\begin{equation}
+{f'}_1(x) = f_1(x)[1 - f_1(x)]
+\end{equation}
+
+#+NAME: eq4
+\begin{equation}
+f_2(x) = \dfrac{2}{1+\exp(-x)} - 1
+\end{equation}
+
+#+NAME: eq5
+\begin{equation}
+{f'}_1(x) = \frac{1}{2}[1 + f_2(x)][1 - f_2(x)]
+\end{equation}
+
+#+NAME: eq6
+\begin{equation}
+E = \frac{1}{2}\sum_{k \in K}{(a_k-t_k)^2}
+\end{equation}
+
+#+NAME: eq7
+\begin{equation}
+w_{jk_{novo}} \leftarrow w_{jk_{antigo}} - \eta\dfrac{\partial E}{\partial w_{jk_{antigo}}}
+\end{equation}
+
+* Objetivos
+- Aprimorar o conhecimento sobre Redes Neurais Artificiais e obter
+  experiência prática na implementação das mesmas.
+- Implementar uma rede neural multicamadas utilizando o algoritmo da
+  retropropagação do erro para a função lógica XOR (tab. [[tb1]]).
+- Desenhar a arquitetura da rede neural
+- Plotar a curva do erro quadrático
+- Apresentar os pesos encontrados
+
+#+NAME: tb1
+#+CAPTION: Função Lógica XOR
+| X_1 | X_2 |  Y |
+|   1 |   1 | -1 |
+|   1 |  -1 |  1 |
+|  -1 |   1 |  1 |
+|  -1 |  -1 | -1 |
+
+#+NAME: tb1-inputs
+#+BEGIN_SRC lisp :exports none :tangle no :var tb1=tb1
+(cdr (mapcar #'(lambda (line)
+		 (append (butlast line) '(1)))
+	     tb1))
+#+END_SRC
+
+#+RESULTS: tb1-inputs
+|  1 |  1 | 1 |
+|  1 | -1 | 1 |
+| -1 |  1 | 1 |
+| -1 | -1 | 1 |
+
+#+NAME: tb1-outputs
+#+BEGIN_SRC lisp :exports none :tangle no :var tb1=tb1
+(cdr (mapcar #'(lambda (x) (first (last x))) tb1))
+#+END_SRC
+
+#+RESULTS: tb1-outputs
+| -1 | 1 | 1 | -1 |
+
+* Materiais e Métodos
+
+Para implementação da rede neural foi utilizada a linguagem de
+programação Common Lisp, compilando-a com o SBCL (Steel Bank Common
+Lisp). Como interface de desenvolvimento, foi utilizado o Emacs em Org
+Mode, configurado com a plataforma SLIME (The Superior Lisp
+Interaction Mode for Emacs) para melhor comunicação com o SBCL. Foi
+utilizada uma abordagem bottom-up para o desenvolvimento. O código
+produzido segue majoritariamente o paradigma funcional, sendo este
+trabalho como um todo uma obra de programação literária. Parte das
+funções já foram implementadas em [[file:../hebb/][Regra de Hebb]], [[file:../perceptron-adaline][Perceptron e
+Adaline]] e [[file:../linear-regression/][Regressão Linear]].
+
+* Desenvolvimento
+
+Apesar de possuir similaridades com a função =iterative-training=
+implementada anteriormente, o treinamento com retropropagação do erro
+apresenta diferenças que justificam a implementação de uma nova
+funcionalidade. Uma rede neural multicamadas será representada como
+uma lista de camadas. Cada camada será representada por uma lista de
+neurônios e cada neurônio, por uma lista de pesos, que correspondem às
+ligações do mesmo com a camada anterior. Assim, a função de
+treinamento deve receber entre os parâmetros, uma configuração da rede
+neural. Isto se dá na forma da lista de pesos iniciais. A mesma deverá
+retornar a lista de pesos atualizada.
+
+Primeiramente, é necessário implementar a estratégia do feedforward,
+ou seja, dado um conjunto de entradas, determinar a saída da rede
+neural. A partir da estratégia bottom-up, primeiro implementa-se a
+saída de um único neurônio, depois de uma camada e por último, da
+rede.
+
+#+BEGIN_SRC lisp
+(defun neuron-output (inputs neuron-list fn)
+  (let ((net (reduce #'+ (mapcar #'* inputs neuron-list))))
+    (values (funcall fn net)
+	    net)))
+
+(defun layer-output (inputs layer-list fn)
+  (mapcar #'(lambda (neuron)
+	      (neuron-output inputs neuron fn))
+	  layer-list))
+
+(defun mlnn-output (inputs mlnn-list fn)
+  (do ((result inputs (layer-output result (car layer-list) fn))
+       (layer-list mlnn-list (cdr layer-list)))
+      ((not layer-list) (car result))))
+#+END_SRC
+
+#+RESULTS:
+: MLNN-OUTPUT
+
+Como será utilizada a função de ativação sigmoide bipolar ([[eq4]]), a mesma
+deve ser implementada (junto de sua derivada [[eq5]]):
+
+#+BEGIN_SRC lisp
+(defun bipolar-sigmoid (x)
+  (- (/ 2 (+ 1 (exp (- x)))) 1))
+
+(defun bipolar-sigmoid^1 (x)
+  (let ((f (bipolar-sigmoid x)))
+    (* 1/2 (1+ f) (- 1 f))))
+#+END_SRC
+
+#+RESULTS:
+: BIPOLAR-SIGMOID^1
+
+Assim, =mlnn-output= (que faz o papel do feedforward) é chamada da
+seguinte forma:
+
+#+BEGIN_SRC lisp :tangle no :exports both
+(mlnn-output '(-1 -1 1)
+	     '(((2 2 2) (3 3 3))
+	       ((1 2) (2 1) (3 1))
+	       ((2 4 5)))
+	     #'bipolar-sigmoid)
+#+END_SRC
+
+#+RESULTS:
+: -0.999874
+
+Algumas observações importantes:
+1. É considerado nesta implementação que o último elemento da lista de
+   pesos é sempre correspondente ao bias, portanto em todas as listas
+   de entrada é estritamente necessário a inclusão de um valor
+   unitário na última posição.
+2. Na chamada acima, a lista de pesos passada para a função
+   corresponde a uma rede neural com duas camadas escondidas, sendo 3
+   entradas na rede neural, 2 neurônios na primeira camada escondida,
+   três na segunda e a apenas um na última.
+3. A saída (única) de um neurônio alimenta todos os neurônios da
+   próxima camada.
+4. A função =neuron-output= retorna dois valores: =y_k= e =net=. Isto
+   é necessário para o cálculo de \delta.
+5. =mlnn-output= assume que exista apenas um neurônio na última
+   camada, ignorando as saídas dos outros neurônios.
+
+Prosseguindo a implementação da função de treinamento, começa-se agora
+a atualização dos pesos. As funções referentes à camada de saída
+possuem em seu nome, o indicador k, enquanto as outras recebem o
+indicador j. Observa-se que não há diferença entre o algoritmo de
+atualização das camadas, mas sim entre o cálculo da lista de
+\delta's. As equações estão representadas abaixo primeiro em forma
+matemática e depois em código =lisp=.
+
+$$\delta_k = f'(y_{in_k})(t_k-y_k)$$
+
+#+BEGIN_SRC lisp
+(defun small-delta-k (target net output fn^1)
+  (* (- target output) (funcall fn^1 net)))
+#+END_SRC
+
+$$\delta_j = f'(z_{in_j})\sum_{k=1}^{m}\delta_kw_{jk}$$
+
+#+BEGIN_SRC lisp
+(defun small-delta-j (net delta-list weight-list fn^1)
+  (* (reduce #'+ (mapcar #'* delta-list weight-list)) (funcall fn^1 net)))
+#+END_SRC
+
+$$\Delta w=\alpha\delta z$$
+
+#+BEGIN_SRC lisp
+(defun new-weight (learning-rate small-delta input)
+  (* learning-rate small-delta input))
+#+END_SRC
+
+Assim, temos que a atualização de uma lista de pesos ocorre da
+seguinte forma:
+
+#+BEGIN_SRC lisp
+(defun new-weight-list (old-weight-list inputs learning-rate small-delta)
+  (mapcar #'(lambda (old-weight input)
+	      (+ old-weight (new-weight learning-rate small-delta input)))
+	  old-weight-list inputs))
+#+END_SRC
+
+E finalmente uma camada é atualizada:
+
+#+BEGIN_SRC lisp
+(defun new-layer-list (old-layer-list small-delta-list inputs learning-rate)
+  (mapcar #'(lambda (old-weight-list small-delta)
+	      (new-weight-list old-weight-list inputs learning-rate small-delta))
+	  old-layer-list small-delta-list))
+#+END_SRC
+
+Assim, falta implementar apenas a função =new-mlnn-list=, que atualiza
+toda a estrutura da rede neural. Esta função é recursiva, para que o
+retorno da última camada seja usado pelas camadas anteriores. Assim, é
+utilizado a =stack= da recursão para realizar tanto o /feedforwarding/
+quanto o /retropropagation/.
+
+#+BEGIN_SRC lisp
+(defun new-mlnn-list (old-mlnn-list source target fn fn^1 learning-rate)
+  (labels ((loop-delta (old-layer-list next-layer-list inputs delta-list)
+	      (do ((i 0 (1+ i))
+		   (neuron old-layer-list (cdr neuron))
+		   result)
+		  ((not neuron) (nreverse result))
+		(let ((weights (mapcar #'(lambda (y) (nth i y))
+				       next-layer-list)))
+		  (push (small-delta-j (neuron-output inputs (car neuron) fn)
+				       delta-list weights fn^1)
+			result))))
+	   (rec (layers inputs)
+	     (let ((x (cdr layers)))
+	       (if x
+		   (let ((old-layer-list (car layers)))
+		     (multiple-value-bind (next-layers delta quadratic-error)
+			 (rec x (layer-output inputs old-layer-list fn))
+		       (let ((delta-j-list (loop-delta old-layer-list
+						       (car next-layers)
+					               inputs
+					               delta)))
+			 (values (cons (new-layer-list old-layer-list
+						       delta-j-list
+						       inputs
+						       learning-rate)
+				       next-layers)
+				 delta-j-list quadratic-error))))
+		   (let* ((quadratic-error 0)
+			  (last-layer (car layers))
+			  (delta-k-list
+			   (mapcar #'(lambda (neuron)
+				       (multiple-value-bind (output net)
+					   (neuron-output inputs neuron fn)
+					 (setf quadratic-error
+					       (+ quadratic-error
+						  (expt (- output target)
+							2)))
+					 (small-delta-k target net output fn^1)))
+				   last-layer)))
+		     (values (list (new-layer-list last-layer
+						   delta-k-list
+						   inputs
+						   learning-rate))
+			     delta-k-list
+			     (/ quadratic-error 2)))))))
+    (rec old-mlnn-list source)))
+#+END_SRC
+
+Apesar de inicialmente parecer críptica, a função =new-mlnn-list= é
+bem direta. É composta da definição de uma função =loop-delta=, que
+serve para mapear os \delta's (a partir de uma lista de \delta's) às
+entradas correspondentes, e a recursão em si. Dentro da recursão, é
+verificado se o =cdr= de inputs é vazio. Caso não seja, a recursão é
+invocada, antes que outras operações sejam feitas (garantindo, assim,
+que a próxima camada seja conhecida pelo escopo atual) e em seguida, a
+atualização é realizada. Caso =cdr= seja vazio, a função está na
+última camada, e deve atualizar os pesos conforme as regras
+anteriores. Visto que é necessário conhecer a lista de \delta's da
+camada seguinte para atualização da camada atual, faz-se com que a
+recursão retorne múltiplos valores, o primeiro sendo o acumulador da
+lista de resultado e o segundo, a lista de \delta's.
+
+Fazendo com que a função seja aplicada a um conjunto de entradas,
+tem-se:
+
+#+BEGIN_SRC lisp
+(defun multiple-source-new-mlnn-list (initial-mlnn-list source-list target-list fn fn^1 learning-rate)
+  (do ((mlnn-list initial-mlnn-list)
+       delta
+       (err 0)
+       (source source-list (cdr source))
+       (target target-list (cdr target)))
+      ((or (not source) (not target)) (values mlnn-list err))
+    (setf (values mlnn-list delta err)
+	  (new-mlnn-list mlnn-list (car source) (car target) fn fn^1 learning-rate))))
+#+END_SRC
+
+E, finalmente, o loop pelo número de ciclos (ou tolerância):
+
+#+BEGIN_SRC lisp
+(defun iterative-retropropagation (initial-mlnn-list source-list target-list fn fn^1 learning-rate cycles tolerance)
+  (do ((i 0 (1+ i))
+       (mlnn-list initial-mlnn-list)
+       (err 0)
+       err-list)
+      ((or (> i cycles)
+	   (and (< err tolerance)
+		(> i 0)))
+       (values mlnn-list
+	       (nreverse err-list)))
+    (setf (values mlnn-list err)
+	  (multiple-source-new-mlnn-list mlnn-list source-list target-list fn fn^1 learning-rate))
+    (push (list i err 1) err-list)))
+#+END_SRC
+
+Para que o treinamento seja invocado, é necessário passar como
+parâmetro uma lista inicial de pesos. A geração desta lista é feita
+aleatoriamente pelas funções a seguir:
+
+#+BEGIN_SRC lisp
+(defun random-layer-list (min max n-neurons n-weights)
+  (loop repeat n-neurons
+       collecting (random-weights n-weights min max)))
+
+(defun random-mlnn-list (min max n-inputs &rest configs)
+  (do ((layers configs (cdr layers))
+       (last-n n-inputs (car layers))
+       result)
+      ((not layers) (nreverse result))
+    (push (random-layer-list min max (car layers) last-n)
+	  result)))
+#+END_SRC
+
+* Testes E Resultados
+
+#+NAME: fig1
+#+CAPTION: Arquitetura da rede neural
+[[./plots/neural-network.pdf]]
+
+A arquitetura da rede neural utilizada para o teste é composta de 5
+camadas, conforme ilustrado na figura [[fig1]], feita utilizando a
+[[http://alexlenail.me/NN-SVG/index.html][plataforma desenvolvida por Alexander Lenail]]. Esta configuração se
+mostrou bastante consistente no cálculo dos pesos, quase sempre
+encerrando a execução antes do limite de ciclos (de 10000), alcançando
+o valor de tolerância para o erro (0.0001).  Assim, para a tabela [[tb1]],
+temos que os pesos são:
+
+#+BEGIN_SRC lisp :tangle no :var tb1-inputs=tb1-inputs tb1-outputs=tb1-outputs :session final
+(defvar *w-mlnn*
+  (multiple-value-bind (weights err)
+    (iterative-retropropagation
+     (random-mlnn-list -0.5 0.5 3 6 5 7 1)
+     tb1-inputs
+     tb1-outputs
+     #'bipolar-sigmoid
+     #'bipolar-sigmoid^1
+     0.1 10000 0.0001)
+  (scatter-plot "plots/quadratic-error.png" err nil)
+  weights))
+#+END_SRC
+
+#+RESULTS:
+: *W-MLNN*
+
+#+BEGIN_SRC lisp :tangle no :exports results :results value verbatim :session final
+*w-mlnn*
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+(((-0.34789914 0.7749249 -0.8395959) (0.23069206 0.42560303 -0.58932936)
+  (0.12569647 0.8277479 -0.38329694) (0.73852783 1.5701338 0.60785335)
+  (1.5756258 0.8102134 -1.5074438) (-1.4755678 0.7920605 1.5060141))
+ ((-0.25400895 0.2909241 0.11014344 0.061706588 0.5309946 0.8769151)
+  (0.23226246 -0.0030023544 0.27678826 -0.42005304 1.6506033 0.2218519)
+  (1.102741 0.3053548 0.5127867 1.548804 -2.5253503 -2.5824223)
+  (-0.3311499 -0.49603876 -0.22774677 -0.035564534 0.17650117 0.8420443)
+  (0.060995363 -0.107105024 0.21594132 0.8832836 -1.6850007 -1.3301837))
+ ((-0.45523667 -1.24469 1.8039058 -0.16694485 1.4598544)
+  (-0.19818544 -0.02535298 1.1193107 -0.60112613 0.3738298)
+  (-0.32069626 0.032872252 0.58205014 -0.32333675 -0.06605613)
+  (0.8030033 0.0077999095 -1.5520763 0.5066229 -0.49608263)
+  (0.06626284 -0.20776625 1.4241282 -0.58539 1.0458076)
+  (0.6199099 0.95571357 -0.8178353 -0.24823171 -0.61368847)
+  (-0.03820106 0.6573657 -2.1969361 0.12350408 -0.9567786))
+ ((2.5473473 1.1422266 0.54489225 -1.667092 1.682888 -1.3393639 -2.3715405)))
+#+end_example
+
+É interessante notar que o padrão observado na imagem [[fig2]] (gerada
+pela chamada acima) se repetiu em algumas execuções do
+algoritmo. Outros padrões também foram encontrados, e em algumas
+vezes, o resultado não foi alcançado. Percebe-se que a configuração
+inicial é bem significativa para a obtenção de um resultado
+fidedigno. Os pesos acima encontrados podem ser interpretados da
+seguinte forma: O primeiro nível da lista representa as camadas,
+portanto contém 4 elementos (a primeira camada corresponde às entradas
+da rede neural, portanto não aparece na lista de pesos). Dentro de
+cada elemento, é possível encontrar os pesos para cada
+neurônio. Assim, tomando como exemplo o item $(-0.34789914 0.7749249
+-0.8395959)$ (primeiro elemento da primeira camada), interpreta-se que
+-0.34789914 é o peso para a primeira entrada, 0.7749249 para a segunda
+e -0.8395959 para a terceira (b, nesse caso), do primeiro neurônio da
+primeira camada escondida.
+
+#+NAME: fig2
+#+CAPTION: Curva do erro quadrático em um treinamento de rede neural multicamadas para a função lógica XOR
+[[./plots/quadratic-error.png]]
+
+Assim, chamando a função =mlnn-output= com os pesos encontrados, temos
+o seguinte resultado:
+
+#+BEGIN_SRC lisp :tangle no :exports both :var tb1-inputs=tb1-inputs :session final
+(loop for i in tb1-inputs
+   collecting (mlnn-output i *w-mlnn* #'bipolar-sigmoid))
+#+END_SRC
+
+#+RESULTS:
+| -0.9870678 | 0.98717296 | 0.9862648 | -0.9858839 |
+
+Este bem próximo aos valores esperados:
+
+| -1 | 1 | 1 | -1 |
+
+* Conclusão
+
+Durante a implementação e fase de testes, observou-se que a
+determinação dos pesos é fortemente influenciada pela configuração
+inicial da rede, tanto a arquitetura quanto os valores iniciais dos
+pesos. Assim, tal definição é essencial para alcançar resultados que
+descrevam o modelo com fidelidade. 
+
+Apesar desta incerteza na definição dos parâmetros da rede neural, os
+resultados foram extremamente satisfatórios, sendo possível resolver o
+problema da função lógica =XOR=, a qual é, por natureza, não
+linearmente separável. Esta constatação abrange significativamente a
+gama de aplicações das redes neurais, não sendo mais limitada à este
+fato.
+
+Em relação à implementação, foi possível codificar com sucesso uma
+função de treino de uma rede neural arbitrária com retropropagação do
+erro. Tal rede neural pode ter qualquer configuração, desde que esteja
+em conformidade ao formato apresentado. Esta função também permite a
+utilização de outras funções de ativação, sendo simples e direto o
+treinamento para outras redes, com outras ativações.
+
+\bibliographystyle{plain}
+\bibliography{../references}

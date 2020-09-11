@@ -13,5 +13,10 @@
 #+CREATOR: Emacs 26.2 (Org mode 9.1.9)
 
 ** [[file:hebb/][Regra De Hebb]]
+[[file:hebb/README.pdf][PDF]]
 ** [[file:perceptron-adaline/][Perceptrons e Adaline]]
+[[file:perceptron-adaline/README.pdf][PDF]]
 ** [[file:linear-regression/][Linear Regression]]
+[[file:linear-regression/README.pdf][PDF]]
+** [[file:multilayer-perceptron/][Multilayer Perceptron]]
+[[file:multilayer-perceptron/README.pdf][PDF]]

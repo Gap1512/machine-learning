@@ -1,2 +1,2 @@
 (defpackage :machine-learning
-  (:use :cl :eazy-gnuplot))
+  (:use :cl))

@@ -288,17 +288,17 @@ e os imprime na tela:
 
 #+BEGIN_SRC lisp
 (defun scatter-plot (output table boundary)
-  (with-plots (*standard-output* :debug nil)
-    (gp-setup :terminal '(:pngcairo) :output output)
-    (gp :set :palette '("defined (-1 'red', 1 'blue')"))
-    (plot
+  (eazy-gnuplot::with-plots (*standard-output* :debug nil)
+    (eazy-gnuplot::gp-setup :terminal '(:pngcairo) :output output)
+    (eazy-gnuplot::gp :set :palette '("defined (-1 'red', 1 'blue')"))
+    (eazy-gnuplot::plot
      (lambda ()
        (loop
 	  for p in boundary
 	  do (format t "~&~{~a~^ ~}" p)))
      :title "Boundary"
      :with '(:lines))
-    (plot
+    (eazy-gnuplot::plot
      (lambda ()
        (loop
 	  for p in table
@@ -307,9 +307,6 @@ e os imprime na tela:
      :with '(:points :pt 7 :lc :palette)))
   output)
 #+END_SRC
-
-#+RESULTS:
-: SCATTER-PLOT
 
 A função a seguir retorna os dois pontos necessários para traçar a fronteira de separação linear, indo de x_min a 
 x_max.

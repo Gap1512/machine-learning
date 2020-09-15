@@ -7,4 +7,5 @@
 	       (:file "./hebb/hebb")
 	       (:file "./perceptron-adaline/perceptron-adaline")
 	       (:file "./linear-regression/linear-regression")
-	       (:file "./multilayer-perceptron/multilayer-perceptron")))
+	       (:file "./multilayer-perceptron/multilayer-perceptron")
+	       (:file "./feature-engineering/feature-engineering")))

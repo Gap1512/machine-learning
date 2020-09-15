@@ -1,0 +1,250 @@
+#+LATEX_CLASS_OPTIONS: [12pt]
+#+LATEX_HEADER: \usepackage[margin=3cm]{geometry}
+
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline
+#+OPTIONS: author:t broken-links:nil c:nil creator:nil
+#+OPTIONS: d:(not "LOGBOOK") date:t e:t email:t f:t inline:t num:t
+#+OPTIONS: p:nil pri:nil prop:nil stat:t tags:t tasks:t tex:t
+#+OPTIONS: timestamp:t title:t toc:nil todo:t |:t
+
+#+TITLE: Engenharia de Características
+#+AUTHOR: Gustavo Alves Pacheco
+#+DATE: 11821ECP011
+#+EMAIL: gap1512@gmail.com
+#+LANGUAGE: en
+#+SELECT_TAGS: export
+#+EXCLUDE_TAGS: noexport
+#+CREATOR: Emacs 26.2 (Org mode 9.1.9)
+
+#+PROPERTY: header-args :tangle feature-engineering.lisp
+
+#+BEGIN_SRC lisp :exports none
+  (in-package :machine-learning)
+#+END_SRC
+
+#+BEGIN_SRC lisp :exports none :tangle no
+  (ql:quickload :machine-learning)
+#+END_SRC
+
+* Introdução
+
+Até o momento, as aplicações de rede neurais utilizavam conjuntos
+pequenos de entrada. Não apenas isto, como também tal conjunto já
+representava diretamente a grandeza que servia de entrada. Entretanto,
+na maioria das aplicações reais, o conjunto de dados bruto deve ser
+convertido no vetor de características, que alimentará a rede neural
+\cite{yamanaka}.
+
+Em ocasiões será necessário converter categorias em estruturas
+binárias, por exemplo, para que tal valor não afete o resultado das
+multiplicações. Técnica esta conhecida como One-hot encoding. Nela, as
+categorias 1, 2 e 3 seriam convertidas em colunas 1 0 0, 0 1 0 e 0 0
+1, respectivamente.
+
+Em outras, pode ser necessário que os dados sejam normalizados antes
+de servirem como entradas da rede neural. Isto ocorre quando as
+grandezas das variáveis são muito diferentes. Assim, pode-se aplicar a
+técnica do Zscore (eq. [[eq1]]), que desloca os dados para a média e faz o
+desvio padrão ser igual a 1, a do MinMax (eq. [[eq2]]), na qual os novos
+valores variam entre 0 e 1, ou outras, como a da equação [[eq3]], por
+exemplo, que faz os dados variarem entre y_min e y_max.
+
+#+NAME: eq1
+\begin{equation}
+z = \frac{x - \operatorname{mean}(x)}{\operatorname{stdev}(x)}
+\end{equation}
+
+#+NAME: eq2
+\begin{equation}
+z = \frac{x - \operatorname{min}(x)}{\operatorname{max}(x) - \operatorname{min}(x)}
+\end{equation}
+
+#+NAME: eq3
+\begin{equation}
+z = \frac{(x - \operatorname{min}(x))(y_{max} - y_{min})}{\operatorname{max}(x) - \operatorname{min}(x)} + y_{min}
+\end{equation}
+
+Outro aspecto interessante a apontar em aplicações reais é a
+utilização de conjuntos de treinamento, de validação e de teste, para
+melhorar a capacidade de generalização da rede neural. Assim, o modelo
+é treinado utilizando o conjunto de treinamento e avaliado utilizando
+o conjunto de validação, periodicamente. Enquanto apresentar melhorias
+na avaliação, o treinamento continua. Quando ocorre a convergência com
+o conjunto de validação, o conjunto de teste é aplicado na rede.
+
+* Objetivos
+- Aprimorar o conhecimento sobre Redes Neurais Artificiais e obter
+  experiência prática na implementação das mesmas.
+- Treinar um perceptron com função de ativação logística (sigmóide
+  binária) para classificar sinais de um sonar.
+
+* Materiais e Métodos
+
+Para implementação da rede neural foi utilizada a linguagem de
+programação Common Lisp, compilando-a com o SBCL (Steel Bank Common
+Lisp). Como interface de desenvolvimento, foi utilizado o Emacs em Org
+Mode, configurado com a plataforma SLIME (The Superior Lisp
+Interaction Mode for Emacs) para melhor comunicação com o SBCL. Foi
+utilizada uma abordagem bottom-up para o desenvolvimento. O código
+produzido segue majoritariamente o paradigma funcional, sendo este
+trabalho como um todo uma obra de programação literária. Parte das
+funções já foram implementadas em [[file:../hebb/][Regra de Hebb]], [[file:~/ufu/amaq/perceptron-adaline][Perceptron e Adaline]],
+[[file:../linear-regression/][Regressão Linear]] e [[file:~/ufu/amaq/multilayer-perceptron/][Multilayer Perceptron]].
+
+* Desenvolvimento
+
+O desenvolvimento a seguir utiliza a base de dados da [[https://archive.ics.uci.edu/ml/datasets/Connectionist+Bench+%28Sonar%2C+Mines+vs.+Rocks%29 ][UCI - Machine
+Learning Repository (sonar.csv)]]. Assim, faz-se necessário a
+implementação de algumas funções para trabalhar com tal arquivo. São
+elas: =read-csv=, que deve transformar cada linha do arquivo em uma
+lista, =parse-double=, que deve converter uma string para um número de
+ponto flutuante, =shuffle=, para embaralhar as listas,
+=split-at-last=, para separar as entradas das saídas,
+=percentual-split=, para que, dada uma lista, consiga dividi-la de
+forma percentual.
+
+No momento da leitura do arquivo, deseja-se converter a string para
+ponto flutuante. Portanto, esta será implementada primeiro. 
+
+#+BEGIN_SRC lisp
+(defun parse-double (string)
+  (declare (optimize (speed 3)))
+  (let ((*read-eval* nil))
+    (with-input-from-string (str string)
+      (read str nil nil))))
+#+END_SRC
+
+Para o primeiro elemento do arquivo, temos:
+
+#+BEGIN_SRC lisp :tangle no :export both
+(parse-double "0.0200")
+#+END_SRC
+
+#+RESULTS:
+: 0.02
+
+Assim, a função de leitura do arquivo é implementada:
+
+#+BEGIN_SRC lisp
+(defun read-csv (filename &key (separator '(#\,)) (key #'parse-double))
+    (with-open-file (stream filename)
+      (loop for line = (read-line stream nil)
+	 while line
+	 collect (mapcar key (uiop::split-string line :separator separator)))))
+#+END_SRC
+
+Tendo o arquivo em formato de lista, é interessante que a mesma seja
+embaralhada e depois dividida entre conjunto de treinamento, de
+validação e de teste. Para isto, tem-se que o embaralhamento segue o
+[[https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm][algoritmo de Fisher-Yates]], da seguinte forma:
+
+#+BEGIN_SRC lisp
+(defun shuffle (list)
+  (do ((result (copy-seq list) (swap result i j))
+       (j 0 (random i))
+       (i (1- (length list)) (1- i)))
+      ((zerop i) result)))
+
+(defun swap (list i j)
+  (rotatef (nth i list) (nth j list))
+  list)
+#+END_SRC
+
+A divisão da lista em parcelas ocorre da seguinte forma:
+
+#+BEGIN_SRC lisp
+(defun percentual-split (list &rest percentages)
+  (if (not (= (reduce #'+ percentages) 1))
+      (error "Percentages must add to 1")
+      (let ((lt (length list)))
+	(labels ((rec (lst rates result)
+		   (let ((rest (cdr rates)))
+		     (if rest
+			 (let ((size (floor (* lt (car rates)))))
+			   (rec (nthcdr size lst)
+				rest
+				(cons (subseq lst 0 size) result)))
+			 (values-list (nreverse (cons lst result)))))))
+	  (rec list percentages nil)))))
+#+END_SRC
+
+Os tamanhos de cada lista dependem da porcentagem da lista
+inicial. Portanto, em caso de frações, arrendonda-se para baixo, e o
+último elemento sempre recebe todo o resto (evitando que informações
+sejam perdidas). No geral, apresenta uma boa aproximação da divisão
+percentual.
+
+E por último, a função utilitária =split-at-last=:
+
+#+BEGIN_SRC lisp
+(defun split-at-last (list)
+  (list (butlast list)
+	(last list)))
+
+(defun rock-mine (item)
+  (if (string= item "R")
+      0
+      1))
+
+(defun multiple-split-at-last (list)
+  (loop for i in list
+     for (inputs output) = (split-at-last i)
+     collecting inputs into source
+     collecting (rock-mine (car output)) into target
+     finally (return (values source target))))
+#+END_SRC
+
+Assim, a leitura do arquivo é seguida pela conversão das strings em
+ponto flutuante, um embaralhamento das linhas e um agrupamento entre os
+três tipos de conjuntos (treinamento, validação e teste).
+
+#+BEGIN_SRC lisp :tangle no :session data :results output
+(defvar *training-set*)
+(defvar *validation-set*)
+(defvar *test-set*)
+(defvar *data* (shuffle (read-csv #p"c:/home/ufu/amaq/feature-engineering/data/sonar.csv")))
+
+(multiple-value-setq (*training-set* *validation-set* *test-set*)
+  (percentual-split *data* 0.7 0.15 0.15))
+#+END_SRC
+
+Assim, para aplicação da função =iterative-retropropagation= ao conjunto de
+teste, é necessário apenas implementar =binary-sigmoid= e sua
+derivada, =binary-sigmoid^1=:
+
+#+BEGIN_SRC lisp
+(defun binary-sigmoid (x)
+  (/ (1+ (exp (- x)))))
+
+(defun binary-sigmoid^1 (x)
+  (let ((f (binary-sigmoid x)))
+    (* f (- 1 f))))
+#+END_SRC
+
+O treinamento é então realizado:
+
+#+BEGIN_SRC lisp :tangle no :exports both :session data
+(multiple-value-bind (inputs outputs)
+    (multiple-split-at-last *training-set*)
+  (multiple-value-bind (weights err)
+      (iterative-retropropagation
+       (random-mlnn-list -0.5 0.5 3 6 5 7 1)
+       inputs
+       outputs
+       #'binary-sigmoid
+       #'binary-sigmoid^1
+       0.01 10000 0.0001)
+    (scatter-plot "plots/training-quadratic-error.png" err nil)
+    weights))
+#+END_SRC
+
+#+RESULTS:
+| (-0.325779 0.35857567 0.31105006)                                                     | (-0.031696923 -0.48375204 0.14174612)                                | (0.49996144 0.47434 -0.19107644)                                    | (-0.45669737 -0.02178225 -0.44339985)                             | (0.106069334 -0.32150984 -0.3186281)                                  | (0.18513305 0.14750591 0.42756528)                       |                                                      |
+| (0.30879167 -0.08354899 0.08333657 0.34913483 -0.11668095 0.41658926)                 | (-0.2717045 -0.3138868 0.3350888 -0.28315622 0.23909535 -0.12687683) | (0.52038497 0.4502332 0.25781447 0.2553062 -0.41858298 0.036585703) | (-0.43105295 0.18534943 0.46789083 0.2712083 -0.4876539 0.379917) | (0.28386477 -0.18889515 -0.32647446 0.49138564 0.5172097 -0.32711816) |                                                          |                                                      |
+| (0.40953922 -0.24065883 -0.3014796 -0.19579098 0.46703708)                            | (-0.29763874 0.23290907 0.5120376 0.01226287 -0.4275081)             | (-0.3971405 -0.18191816 0.327476 -0.015085617 0.42769742)           | (0.47999915 -0.3346865 0.117151394 0.5368083 0.57103336)          | (0.5864062 0.0642035 0.21521527 -0.33880332 0.49338228)               | (0.28498182 0.5371481 -0.26289758 -0.38031396 0.4440506) | (0.6004993 0.1316965 0.5281125 -0.3580034 0.4161256) |
+| (-0.33952457 0.044946514 -0.123562224 -0.058279194 -0.072504796 0.15583374 0.2684555) |                                                                      |                                                                     |                                                                   |                                                                       |                                                          |                                                      |
+
+* Conclusão
+
+\bibliographystyle{plain}
+\bibliography{../references}

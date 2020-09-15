@@ -39,17 +39,17 @@
 	      (nreverse quadratic-error)))))
 
 (defun scatter-plot (output table boundary)
-  (with-plots (*standard-output* :debug nil)
-    (gp-setup :terminal '(:pngcairo) :output output)
-    (gp :set :palette '("defined (-1 'red', 1 'blue')"))
-    (plot
+  (eazy-gnuplot::with-plots (*standard-output* :debug nil)
+    (eazy-gnuplot::gp-setup :terminal '(:pngcairo) :output output)
+    (eazy-gnuplot::gp :set :palette '("defined (-1 'red', 1 'blue')"))
+    (eazy-gnuplot::plot
      (lambda ()
        (loop
 	  for p in boundary
 	  do (format t "~&~{~a~^ ~}" p)))
      :title "Boundary"
      :with '(:lines))
-    (plot
+    (eazy-gnuplot::plot
      (lambda ()
        (loop
 	  for p in table

@@ -11,7 +11,7 @@
 	  layer-list))
 
 (defun mlnn-output (inputs mlnn-list fn)
-  (do ((result inputs (layer-output result (car layer-list) fn))
+  (do ((result inputs (layer-output (append result (list 1)) (car layer-list) fn))
        (layer-list mlnn-list (cdr layer-list)))
       ((not layer-list) (car result))))
 
@@ -57,7 +57,7 @@
 	       (if x
 		   (let ((old-layer-list (car layers)))
 		     (multiple-value-bind (next-layers delta quadratic-error)
-			 (rec x (layer-output inputs old-layer-list fn))
+			 (rec x (append (layer-output inputs old-layer-list fn) (list 1)))
 		       (let ((delta-j-list (loop-delta old-layer-list
 						       (car next-layers)
 					               inputs
@@ -86,7 +86,7 @@
 						   learning-rate))
 			     delta-k-list
 			     (/ quadratic-error 2)))))))
-    (rec old-mlnn-list source)))
+    (rec old-mlnn-list (append source (list 1)))))
 
 (defun multiple-source-new-mlnn-list (initial-mlnn-list source-list target-list fn fn^1 learning-rate)
   (do ((mlnn-list initial-mlnn-list)
@@ -121,5 +121,5 @@
        (last-n n-inputs (car layers))
        result)
       ((not layers) (nreverse result))
-    (push (random-layer-list min max (car layers) last-n)
+    (push (random-layer-list min max (car layers) (1+ last-n))
 	  result)))

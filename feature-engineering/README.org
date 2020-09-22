@@ -19,7 +19,9 @@
 #+PROPERTY: header-args :tangle feature-engineering.lisp
 
 #+BEGIN_SRC lisp :exports none
-  (in-package :machine-learning)
+(in-package :machine-learning)
+
+(declaim (optimize (speed 3) (debug 0) (safety 0)))
 #+END_SRC
 
 #+BEGIN_SRC lisp :exports none :tangle no
@@ -94,14 +96,15 @@ funções já foram implementadas em [[file:../hebb/][Regra de Hebb]], [[file:~/ufu
 * Desenvolvimento
 
 O desenvolvimento a seguir utiliza a base de dados da [[https://archive.ics.uci.edu/ml/datasets/Connectionist+Bench+%28Sonar%2C+Mines+vs.+Rocks%29 ][UCI - Machine
-Learning Repository (sonar.csv)]]. Assim, faz-se necessário a
-implementação de algumas funções para trabalhar com tal arquivo. São
-elas: =read-csv=, que deve transformar cada linha do arquivo em uma
-lista, =parse-double=, que deve converter uma string para um número de
-ponto flutuante, =shuffle=, para embaralhar as listas,
-=split-at-last=, para separar as entradas das saídas,
-=percentual-split=, para que, dada uma lista, consiga dividi-la de
-forma percentual.
+Learning Repository (sonar.csv)]]. Busca-se identificar se um sinal
+corresponde à uma mina ou a uma rocha, de acordo com 60
+variáveis. Assim, faz-se necessário a implementação de algumas funções
+para trabalhar com tal arquivo. São elas: =read-csv=, que deve
+transformar cada linha do arquivo em uma lista, =parse-double=, que
+deve converter uma string para um número de ponto flutuante,
+=shuffle=, para embaralhar as listas, =split-at-last=, para separar as
+entradas das saídas e =percentual-split=, para que, dada uma lista,
+consiga dividi-la de forma percentual.
 
 No momento da leitura do arquivo, deseja-se converter a string para
 ponto flutuante. Portanto, esta será implementada primeiro. 
@@ -136,7 +139,7 @@ Assim, a função de leitura do arquivo é implementada:
 Tendo o arquivo em formato de lista, é interessante que a mesma seja
 embaralhada e depois dividida entre conjunto de treinamento, de
 validação e de teste. Para isto, tem-se que o embaralhamento segue o
-[[https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm][algoritmo de Fisher-Yates]], da seguinte forma:
+algoritmo de Fisher-Yates, da seguinte forma:
 
 #+BEGIN_SRC lisp
 (defun shuffle (list)
@@ -164,7 +167,8 @@ A divisão da lista em parcelas ocorre da seguinte forma:
 			   (rec (nthcdr size lst)
 				rest
 				(cons (subseq lst 0 size) result)))
-			 (values-list (nreverse (cons lst result)))))))
+			 (values-list (nreverse (cons lst
+						      result)))))))
 	  (rec list percentages nil)))))
 #+END_SRC
 
@@ -195,10 +199,11 @@ E por último, a função utilitária =split-at-last=:
 #+END_SRC
 
 Assim, a leitura do arquivo é seguida pela conversão das strings em
-ponto flutuante, um embaralhamento das linhas e um agrupamento entre os
-três tipos de conjuntos (treinamento, validação e teste).
+ponto flutuante, um embaralhamento das linhas e um agrupamento entre
+os três tipos de conjuntos (treinamento, validação e teste), que ficam
+salvos nas variáveis a seguir.
 
-#+BEGIN_SRC lisp :tangle no :session data :results output
+#+BEGIN_SRC lisp :results output
 (defvar *training-set*)
 (defvar *validation-set*)
 (defvar *test-set*)
@@ -221,30 +226,176 @@ derivada, =binary-sigmoid^1=:
     (* f (- 1 f))))
 #+END_SRC
 
-O treinamento é então realizado:
+O treinamento é então realizado da seguinte forma (devido ao tamanho
+da lista de pesos, a saída não será mostrada):
 
-#+BEGIN_SRC lisp :tangle no :exports both :session data
+#+BEGIN_SRC lisp :tangle no :eval no
 (multiple-value-bind (inputs outputs)
     (multiple-split-at-last *training-set*)
   (multiple-value-bind (weights err)
       (iterative-retropropagation
-       (random-mlnn-list -0.5 0.5 3 6 5 7 1)
+       (random-mlnn-list -0.5 0.5 (length inputs) 6 1)
        inputs
        outputs
        #'binary-sigmoid
        #'binary-sigmoid^1
-       0.01 10000 0.0001)
+       0.05 10000 0.0001)
     (scatter-plot "plots/training-quadratic-error.png" err nil)
     weights))
 #+END_SRC
 
+Para a etapa de validação, será utilizada a seguinte estratégia:
+Primeiro a rede é treinada, utilizando a chamada acima. Após a
+conclusão, será executada a função =mlnn-output= com cada um dos
+elementos do conjunto de teste, e a taxa de acerto será
+calculada. Este processo (treino e avaliação) se repetirá até que a
+taxa de acerto seja maior que certo valor, ou o número de repetições
+estoure certo limite.
+
+#+BEGIN_SRC lisp
+(defun mlnn-train-validation (training-set validation-set fn fn^1
+			      output-fn threshold learning-rate
+			      training-cycles training-tolerance
+			      validation-cycles validation-tolerance
+			      min max &rest configs)
+  (multiple-value-bind (validation-inputs validation-outputs)
+      (multiple-split-at-last validation-set)
+    (multiple-value-bind (training-inputs training-outputs)
+	(multiple-split-at-last training-set)
+      (do ((hit-rate-validation (- 1 validation-tolerance))
+	   (best-hit-rate 0)
+	   (best-err 0)
+	   (best-weights nil)
+	   (i 0 (1+ i)))
+	  ((or (>= i validation-cycles)
+	       (> best-hit-rate hit-rate-validation))
+	   (values best-weights best-err best-hit-rate))
+	(multiple-value-bind (weights err)
+	    (iterative-retropropagation (apply #'random-mlnn-list min
+					       max (length (car
+							    training-inputs))
+					       configs)
+					training-inputs
+					training-outputs fn
+					fn^1 learning-rate
+					training-cycles
+					training-tolerance)
+	  (let ((hit-rate (mlnn-hit-rate weights validation-inputs
+					 validation-outputs fn output-fn threshold)))
+	    (format t "Training #~a Hit Rate: ~a~%" i hit-rate)
+	    (when (> hit-rate best-hit-rate)
+	      (setf best-weights weights
+		    best-err err
+		    best-hit-rate hit-rate))))))))
+
+(defun binary-activation (net threshold)
+  (if (>= net threshold) 1 0))
+
+(defun mlnn-hit-rate (mlnn-list inputs outputs activation-fn output-fn threshold)
+  (let ((hits (mapcar #'(lambda (in out)
+			  (if (= (funcall output-fn
+					  (mlnn-output in mlnn-list activation-fn)
+					  threshold)
+				 out)
+			      1 0))
+	  inputs outputs)))
+  (/ (reduce #'+ hits) (length hits))))
+#+END_SRC
+
 #+RESULTS:
-| (-0.325779 0.35857567 0.31105006)                                                     | (-0.031696923 -0.48375204 0.14174612)                                | (0.49996144 0.47434 -0.19107644)                                    | (-0.45669737 -0.02178225 -0.44339985)                             | (0.106069334 -0.32150984 -0.3186281)                                  | (0.18513305 0.14750591 0.42756528)                       |                                                      |
-| (0.30879167 -0.08354899 0.08333657 0.34913483 -0.11668095 0.41658926)                 | (-0.2717045 -0.3138868 0.3350888 -0.28315622 0.23909535 -0.12687683) | (0.52038497 0.4502332 0.25781447 0.2553062 -0.41858298 0.036585703) | (-0.43105295 0.18534943 0.46789083 0.2712083 -0.4876539 0.379917) | (0.28386477 -0.18889515 -0.32647446 0.49138564 0.5172097 -0.32711816) |                                                          |                                                      |
-| (0.40953922 -0.24065883 -0.3014796 -0.19579098 0.46703708)                            | (-0.29763874 0.23290907 0.5120376 0.01226287 -0.4275081)             | (-0.3971405 -0.18191816 0.327476 -0.015085617 0.42769742)           | (0.47999915 -0.3346865 0.117151394 0.5368083 0.57103336)          | (0.5864062 0.0642035 0.21521527 -0.33880332 0.49338228)               | (0.28498182 0.5371481 -0.26289758 -0.38031396 0.4440506) | (0.6004993 0.1316965 0.5281125 -0.3580034 0.4161256) |
-| (-0.33952457 0.044946514 -0.123562224 -0.058279194 -0.072504796 0.15583374 0.2684555) |                                                                      |                                                                     |                                                                   |                                                                       |                                                          |                                                      |
+: MLNN-HIT-RATE
+
+Assim, a função =training-validation-test= é definida:
+
+#+BEGIN_SRC lisp
+(defun mlnn-train-validation-test (training-set validation-set
+				   test-set fn fn^1 output-fn
+				   threshold learning-rate
+				   training-cycles training-tolerance
+				   validation-cycles
+				   validation-tolerance min max &rest
+								  configs)
+  (multiple-value-bind (weights err hit-rate)
+      (apply #'mlnn-train-validation training-set validation-set fn
+	     fn^1 output-fn threshold learning-rate training-cycles
+	     training-tolerance validation-cycles validation-tolerance
+	     min max configs)
+    (multiple-value-bind (test-inputs test-outputs)
+	(multiple-split-at-last test-set)
+      (let ((test-hit-rate (mlnn-hit-rate weights test-inputs test-outputs fn output-fn threshold)))
+	(format t "Test Hit Rate: ~a~%" test-hit-rate)
+	(values weights err hit-rate test-hit-rate)))))
+#+END_SRC
+
+Para evitar que este documento fique poluído com as informações de
+peso, a função abaixo grava os mesmos em um arquivo:
+
+#+BEGIN_SRC lisp
+(defun save-weights (filename weights)
+  (with-open-file (stream filename :direction :output :if-exists
+			  :supersede :if-does-not-exist :create)
+    (write weights :stream stream)))
+
+(defun load-weights (filename)
+  (with-open-file (stream filename)
+    (read stream)))
+#+END_SRC
 
 * Conclusão
+
+Finalmente, a chamada da função é:
+
+#+BEGIN_SRC lisp :tangle no :results output :exports both :eval no
+(multiple-value-bind (weights err hit-rate-validation hit-rate-test)
+    (mlnn-train-validation-test *training-set*
+				*validation-set*
+				*test-set*
+				#'binary-sigmoid
+				#'binary-sigmoid^1
+				#'binary-activation 0.5
+				0.1 5000 0.001
+				10 0 -0.5 0.5 12 1)
+  (scatter-plot "plots/training-quadratic-error.png" err nil)
+  (save-weights "data/weights.list" weights)
+  (format t "Best Hit Rate On Validation: ~$~%Best Hit Rate On Test: ~$~%"
+	  hit-rate-validation hit-rate-test))
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+Training #0 Hit Rate: 24/31
+Training #1 Hit Rate: 25/31
+Training #2 Hit Rate: 25/31
+Training #3 Hit Rate: 26/31
+Training #4 Hit Rate: 27/31
+Training #5 Hit Rate: 25/31
+Training #6 Hit Rate: 24/31
+Training #7 Hit Rate: 26/31
+Training #8 Hit Rate: 26/31
+Training #9 Hit Rate: 26/31
+Test Hit Rate: 27/32
+Best Hit Rate On Validation: 0.87
+Best Hit Rate On Test: 0.84
+#+end_example
+
+Alguns detalhes interessantes de se observar são:
+1. O limiar de ativação foi colocado em 0.5.
+2. Os pesos iniciais variam de -0.5 a 0.5, aleatoriamente.
+3. São treinadas 10 redes neurais, e a que se desempenhar melhor na
+   etapa de validação é escolhida.
+4. A rede neural é composta de 1 camada escondida, com 12 neurônios.
+5. Várias execuções foram feitas como forma de teste. A taxa de acerto
+   ficou quase sempre bem próxima a 81%, sendo o máximo valor
+   alcançado de 87%.
+6. Em algumas situações, foi melhor diminuir a tolerância, e o número
+   de ciclos de treinamento, para que a rede não ficasse
+   excessivamente treinada, indo mal no conjunto de teste.
+7. A rede acima colocada apresentou taxa de acerto de 87% no conjunto
+   de validação e 84% no de teste.
+
+#+NAME: fig1
+#+CAPTION: Erro Quadrático Em Tempo De Treinamento
+[[./plots/training-quadratic-error.png]]
 
 \bibliographystyle{plain}
 \bibliography{../references}

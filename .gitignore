@@ -2,6 +2,7 @@
 *.bbl
 *.pdf
 *.tex
+*.csv
 _minted-README/
 
 !README.pdf

@@ -15,11 +15,14 @@
 	(list max (funcall fn max))))
 
 (defun average (points)
-  (loop for (x y) in points
-     summing x into c-x
-     summing y into c-y
-     counting t into i
-     finally (return (values (/ c-x i) (/ c-y i)))))
+  (labels ((rec (lst i result)
+	     (if lst
+		 (rec (cdr lst) (1+ i) (mapcar #'+ (car lst)
+					       result))
+		 (values-list (mapcar #'(lambda (x)
+					  (/ x i))
+				      result)))))
+    (rec (cdr points) 1 (car points))))
 
 (defun r-pearson (points)
   (multiple-value-bind (av-x av-y)

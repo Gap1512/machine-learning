@@ -38,10 +38,21 @@
       (values (rec initial-weights t source-list target-list 0)
 	      (nreverse quadratic-error)))))
 
-(defun scatter-plot (output table boundary)
+(defun scatter-plot (output table &optional boundary (min -1) (max 1)
+				    (initial-color "red") (final-color "blue"))
   (eazy-gnuplot::with-plots (*standard-output* :debug nil)
     (eazy-gnuplot::gp-setup :terminal '(:pngcairo) :output output)
-    (eazy-gnuplot::gp :set :palette '("defined (-1 'red', 1 'blue')"))
+    (eazy-gnuplot::gp :set :palette
+		      (list (concatenate 'string
+					 "defined ("
+					 (write-to-string min)
+					 " '"
+					 initial-color
+					 "', "
+					 (write-to-string max)
+					 " '"
+					 final-color
+					 "')")))
     (eazy-gnuplot::plot
      (lambda ()
        (loop
@@ -52,11 +63,20 @@
     (eazy-gnuplot::plot
      (lambda ()
        (loop
-	  for p in table
+	  for p in (ensure-plot-format table)
 	  do (format t "~&~{~a~^ ~}" p)))
      :title "Points"
      :with '(:points :pt 7 :lc :palette)))
   output)
+
+(defun ensure-plot-format (table)
+  (let* ((lt (length (car table)))
+	 (rst (case lt
+		(1 '(0 0))
+		(2 '(0))
+		(3 nil)
+		(otherwise (error "Couldn't ensure plotable format")))))
+    (mapcar #'(lambda (x) (append x rst)) table)))
 
 (defun linear-boundary (weights threshold min max)
   (destructuring-bind (w1 w2 b) weights

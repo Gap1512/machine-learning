@@ -22,3 +22,5 @@
 [[file:multilayer-perceptron/README.pdf][PDF]]
 ** [[file:feature-engineering/][Feature Engineering]]
 [[file:feature-engineering/README.pdf][PDF]]
+** [[file:clustering/][Clustering]]
+[[file:clustering/README.pdf][PDF]]

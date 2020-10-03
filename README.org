@@ -24,3 +24,5 @@
 [[file:feature-engineering/README.pdf][PDF]]
 ** [[file:clustering/][Clustering]]
 [[file:clustering/README.pdf][PDF]]
+** [[file:optimization/][Optimization]]
+[[file:optimization/README.pdf][PDF]]

@@ -9,4 +9,5 @@
 	       (:file "./linear-regression/linear-regression")
 	       (:file "./multilayer-perceptron/multilayer-perceptron")
 	       (:file "./feature-engineering/feature-engineering")
-	       (:file "./clustering/clustering")))
+	       (:file "./clustering/clustering")
+	       (:file "./optimization/optimization")))

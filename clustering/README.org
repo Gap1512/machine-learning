@@ -89,9 +89,9 @@ Adaline]], [[file:../linear-regression/][Regressão Linear]], [[file:../multilaye
 
 Iniciando pela leitura dos pontos, a mesma pode ser feita da seguinte forma:
 
-#+BEGIN_SRC lisp :tangle no
+#+BEGIN_SRC lisp
 (defvar *inputs-clustering*
-  (read-csv #p"data/inputs.points" :separator '(#\ )))
+  (read-csv #p"./data/inputs.points" :separator '(#\ )))
 #+END_SRC
 
 #+RESULTS:
@@ -209,12 +209,12 @@ A chamada da mesma é algo do tipo (figs. [[fig2]] [[fig3]]):
 
 #+NAME: centers-classic
 #+BEGIN_SRC lisp :tangle no :exports both
-(let ((k 4))
+(let ((k 50))
   (multiple-value-bind (centers points errors)
       (k-means k *inputs-clustering*
 	       (initial-centers k *inputs-clustering*) 300 0)
     (scatter-plot "plots/clusters-k-means.png" points
-		  nil 0 3 "yellow" "magenta")
+		  nil 0 3 "red" "blue")
     (scatter-plot "plots/quadratic-error-k-means.png" errors
 		  nil 0 0 "black" "black")
     centers))
@@ -223,10 +223,56 @@ A chamada da mesma é algo do tipo (figs. [[fig2]] [[fig3]]):
 Os centros encontrados para 4 grupos são:
 
 #+RESULTS: centers-classic
-| 6.2542152 | 3.0412123 |
-| 6.2076216 |  6.117181 |
-| 3.0381148 | 6.2945175 |
-|  3.100963 | 2.8521535 |
+|  5.9880004 |    5.8789 |
+|  1.9811286 |  5.100457 |
+|     5.3324 |    1.2517 |
+|   2.909275 |  7.308625 |
+|     5.8883 |    5.3207 |
+|     7.9882 |    8.0092 |
+|  2.0212998 |   8.17665 |
+|  3.1492336 | 5.1257997 |
+|  3.7379303 |    2.8454 |
+|   3.019175 |  5.895875 |
+|    6.35678 | 5.5157194 |
+|    4.90415 | 5.4387503 |
+|  4.4609666 |    2.6206 |
+|   8.547899 |    5.1815 |
+|      5.927 | 1.6638666 |
+|  2.9683597 |   3.78268 |
+|  6.4157996 | 6.3129396 |
+|     6.4608 | 4.4905996 |
+|    4.09685 |    3.4778 |
+|   2.238175 |    1.4244 |
+|     5.9713 | 3.7277334 |
+|   6.498567 | 3.4392834 |
+|  7.3886833 |    3.2781 |
+|  3.7364001 | 1.1024001 |
+|    5.22894 | 4.0435605 |
+|    5.60425 |    7.8838 |
+|    3.68792 |    6.7058 |
+| 0.12189999 | 1.6091499 |
+|     4.7495 | 7.5347247 |
+|  2.5362334 |  6.278667 |
+|   4.871767 | 6.0703335 |
+|   5.960933 | 3.1220667 |
+|  1.1198499 |    3.5691 |
+|    7.60135 |  2.199525 |
+|     4.1007 |  5.512033 |
+|  7.3669667 |  6.597734 |
+|  2.5633166 | 2.4397833 |
+|     5.0878 |    4.6663 |
+|  3.7002501 |  1.782375 |
+|  7.0167603 |   5.88628 |
+|     5.9414 | 2.5765665 |
+|     1.6936 |    6.7628 |
+|  5.3194246 | 2.7629502 |
+|          0 |         0 |
+|    5.68338 | 6.1549597 |
+|          0 |         0 |
+|   6.532183 | 2.6579168 |
+|    4.49962 |   5.02516 |
+|    4.33945 |   4.13665 |
+|  2.5515335 |    8.8637 |
 
 #+NAME: fig2
 #+CAPTION: Agrupamento em 4 Clusters utilizando /k-means/ clássico
@@ -326,12 +372,12 @@ Assim, o clustering é feito (figs. [[fig4]] [[fig5]]):
 
 #+NAME: centers-++
 #+BEGIN_SRC lisp :tangle no :exports both
-(let ((k 4))
+(let ((k 50))
   (multiple-value-bind (centers points errors)
       (k-means k *inputs-clustering*
 	       (k-means++ k *inputs-clustering*) 300 0)
     (scatter-plot "plots/clusters-k-means++.png" points
-		  nil 0 3 "yellow" "magenta")
+		  nil 0 3 "red" "blue")
     (scatter-plot "plots/quadratic-error-k-means++.png" errors
 		  nil 0 0 "black" "black")
     centers))
@@ -340,10 +386,56 @@ Assim, o clustering é feito (figs. [[fig4]] [[fig5]]):
 Os centros encontrados para 4 grupos são:
 
 #+RESULTS: centers-++
-| 6.4415684 | 4.3258276 |
-|  3.390996 |  7.406304 |
-|  3.386129 |  5.325823 |
-| 3.1636505 | 2.6197786 |
+|     4.99275 |    7.5491 |
+|      9.4274 |    5.2018 |
+|    5.838217 | 5.9672832 |
+|   5.6063004 |    3.0886 |
+|    3.258067 |    5.3017 |
+|   4.4968667 | 4.1059666 |
+|      5.9917 |     8.068 |
+|      7.2503 | 3.0649998 |
+|   5.9688716 | 2.9489858 |
+|      4.6279 |    2.5641 |
+|       2.247 |   4.44825 |
+|   3.7002501 |  1.782375 |
+|   7.6288996 | 7.0678005 |
+|     5.20475 |  4.087325 |
+|   2.0657666 | 3.3015664 |
+|     4.76288 | 5.9468203 |
+| 0.045649976 |     2.894 |
+|     3.71665 |  6.672125 |
+|   2.6530998 |   2.35288 |
+|   5.2556996 | 2.6862335 |
+|   4.0411596 |   5.44592 |
+|    6.330543 | 5.3707285 |
+|   6.5976996 | 3.4980142 |
+|   7.6943502 |    3.3116 |
+|   2.3321502 |  6.225984 |
+|      6.3612 | 2.7403398 |
+|   3.6435401 | 2.7122002 |
+|    5.969025 |  6.378825 |
+|       1.587 |   4.82455 |
+|      7.6684 |    5.1612 |
+|   2.5042799 | 5.3504205 |
+|      2.4129 | 1.3319999 |
+|      4.0341 |    7.3934 |
+|    4.015986 | 3.0540001 |
+|      1.5541 |    5.5445 |
+|       2.962 |  7.452067 |
+|   2.0212998 |   8.17665 |
+|     3.06666 |   6.40634 |
+|   3.2874858 | 3.5009859 |
+|   2.5515335 |    8.8637 |
+|   3.7364001 | 1.1024001 |
+|     1.25035 |   1.28825 |
+|     1.60635 |    7.0527 |
+|   6.9375186 | 6.1284547 |
+|   4.6380286 | 5.0185003 |
+|   6.8706665 |    2.3252 |
+|   7.7620664 | 2.2344668 |
+|      5.9846 | 3.9636798 |
+|     5.77835 |  1.560825 |
+|    2.873243 | 3.9856427 |
 
 #+NAME: fig4
 #+CAPTION: Agrupamento em 4 Clusters utilizando /k-means++/

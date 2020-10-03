@@ -1,5 +1,8 @@
 (in-package :machine-learning)
 
+(defvar *inputs-clustering*
+  (read-csv #p"data/inputs.points" :separator '(#\ )))
+
 (defun initial-centers (k points)
   (let ((lt (length points)))
     (loop repeat k collecting
